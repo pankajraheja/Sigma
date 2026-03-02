@@ -1,4 +1,4 @@
-import { ENTERPRISE_STANDARDS } from '../../data/standards'
+import { ENTERPRISE_STANDARDS } from '../../registry/standards'
 import StandardCard from '../../components/ui/StandardCard'
 import SectionHeader from '../../components/ui/SectionHeader'
 

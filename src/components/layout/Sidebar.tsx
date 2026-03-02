@@ -1,4 +1,4 @@
-import type { NavItem } from '../../data/types'
+import type { NavItem } from '../../types'
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '#' },

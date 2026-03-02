@@ -1,4 +1,4 @@
-import { PLATFORM_MODULES } from '../../data/modules'
+import { PLATFORM_MODULES } from '../../registry/modules'
 import ModuleCard from '../../components/ui/ModuleCard'
 import SectionHeader from '../../components/ui/SectionHeader'
 

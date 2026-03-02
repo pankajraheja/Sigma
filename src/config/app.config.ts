@@ -1,4 +1,4 @@
-import type { MainNavItem, UtilityLink, EnvironmentVariant } from '../data/types'
+import type { MainNavItem, UtilityLink, EnvironmentVariant } from '../types'
 
 export const APP_CONFIG = {
   name: 'Enterprise Gateway',

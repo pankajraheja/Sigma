@@ -2,7 +2,7 @@ import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, CardBody, CardFooter } from './Card'
 import StatusBadge from './StatusBadge'
-import type { PlatformModule } from '../../data/types'
+import type { PlatformModule } from '../../types'
 
 interface ModuleCardProps {
   module: PlatformModule

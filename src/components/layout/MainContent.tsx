@@ -1,4 +1,4 @@
-import type { AppShellProps } from '../../data/types'
+import type { AppShellProps } from '../../types'
 
 export default function MainContent({ children }: AppShellProps) {
   return (

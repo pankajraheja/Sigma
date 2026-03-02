@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import type { ModuleStatus } from '../../data/types'
+import type { ModuleStatus } from '../../types'
 
 interface StatusConfig {
   label: string

@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, CardBody, CardFooter } from './Card'
-import type { EnterpriseStandard } from '../../data/types'
+import type { EnterpriseStandard } from '../../types'
 
 interface StandardCardProps {
   standard: EnterpriseStandard

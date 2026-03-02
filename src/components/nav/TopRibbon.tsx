@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import type { UtilityLink, EnvironmentVariant } from '../../data/types'
+import type { UtilityLink, EnvironmentVariant } from '../../types'
 import { ENVIRONMENT, UTILITY_LINKS } from '../../config/app.config'
 
 // ── Sub-components ─────────────────────────────────────────────────────────

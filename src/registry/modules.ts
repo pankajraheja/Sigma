@@ -1,4 +1,4 @@
-import type { PlatformModule } from './types'
+import type { PlatformModule } from '../types'
 
 // ---------------------------------------------------------------------------
 // Platform module registry

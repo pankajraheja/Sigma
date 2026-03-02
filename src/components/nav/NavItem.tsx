@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import clsx from 'clsx'
-import type { MainNavItem } from '../../data/types'
+import type { MainNavItem } from '../../types'
 
 interface NavItemProps {
   item: MainNavItem

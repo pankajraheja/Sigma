@@ -7,7 +7,7 @@ import {
   Plug,
   Zap,
 } from 'lucide-react'
-import type { EnterpriseStandard } from './types'
+import type { EnterpriseStandard } from '../types'
 
 // ---------------------------------------------------------------------------
 // Enterprise standards registry

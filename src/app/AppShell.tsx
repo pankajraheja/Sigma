@@ -1,4 +1,4 @@
-import type { AppShellProps } from '../data/types'
+import type { AppShellProps } from '../types'
 import TopRibbon from '../components/nav/TopRibbon'
 import MainNavbar from '../components/nav/MainNavbar'
 import Footer from '../components/layout/Footer'
