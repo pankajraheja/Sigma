@@ -1,5 +1,5 @@
 import { APP_CONFIG, MAIN_NAV_ITEMS } from '../../config/app.config'
-import NavItem from './NavItem'
+import NavItem from '../nav/NavItem'
 
 // ── Brand mark ─────────────────────────────────────────────────────────────
 

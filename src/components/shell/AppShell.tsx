@@ -1,7 +1,7 @@
-import type { AppShellProps } from '../types'
-import TopRibbon from '../components/nav/TopRibbon'
-import MainNavbar from '../components/nav/MainNavbar'
-import Footer from '../components/layout/Footer'
+import type { AppShellProps } from '../../types'
+import TopRibbon from './TopRibbon'
+import MainNavbar from './MainNavbar'
+import Footer from './Footer'
 
 export default function AppShell({ children }: AppShellProps) {
   return (
