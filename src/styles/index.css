@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "./tokens.css";
+@import "../standards/tokens.css";
 
 /* ─── Global base ─────────────────────────────────────── */
 @layer base {
