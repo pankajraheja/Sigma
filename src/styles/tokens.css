@@ -1,0 +1,114 @@
+/*
+ * Design Tokens — KPMG-inspired enterprise palette
+ *
+ * All values are defined here as CSS custom properties via Tailwind's @theme.
+ * Components must reference these tokens (bg-primary-900, text-ink-muted, …)
+ * and must never hard-code hex values.
+ *
+ * Token groups:
+ *   primary   — deep blue brand scale
+ *   ribbon    — accent blue (header bar, highlights)
+ *   surface   — page and panel backgrounds
+ *   border    — dividers and outlines
+ *   ink       — all text colours
+ *   status    — success / warning / danger / info
+ *   radius    — border-radius scale
+ *   shadow    — elevation shadows
+ *   spacing   — section-level layout spacing
+ */
+
+@theme {
+  /* ─────────────────────────────────────────────────
+     Primary — KPMG deep blue
+     ───────────────────────────────────────────────── */
+  --color-primary-50:  #e6edf7;
+  --color-primary-100: #c0d0ec;
+  --color-primary-200: #8aaade;
+  --color-primary-300: #4f7ecf;
+  --color-primary-400: #2460bf;
+  --color-primary-500: #0047ab;
+  --color-primary-600: #003a96;
+  --color-primary-700: #002d7f;   /* hover state */
+  --color-primary-800: #001d5a;
+  --color-primary-900: #00125a;   /* header / sidebar base */
+  --color-primary-950: #000c3d;
+
+  /* ─────────────────────────────────────────────────
+     Ribbon — bright accent (top bar stripe, badges)
+     ───────────────────────────────────────────────── */
+  --color-ribbon:       #0091da;
+  --color-ribbon-light: #33aae3;
+  --color-ribbon-dark:  #006fa8;
+
+  /* ─────────────────────────────────────────────────
+     Surface — backgrounds
+     ───────────────────────────────────────────────── */
+  --color-surface:        #ffffff;        /* card, modal, panel */
+  --color-surface-raised: #f7f9fc;        /* page canvas */
+  --color-surface-subtle: #eef2f8;        /* table stripe, hover row */
+  --color-surface-overlay: #e4eaf4;       /* selected state bg */
+
+  /* ─────────────────────────────────────────────────
+     Border
+     ───────────────────────────────────────────────── */
+  --color-border:       #d8dde8;
+  --color-border-muted: #eceff5;
+  --color-border-strong: #b0bac8;
+
+  /* ─────────────────────────────────────────────────
+     Ink — all text
+     ───────────────────────────────────────────────── */
+  --color-ink:         #0d1829;   /* primary body copy */
+  --color-ink-muted:   #5a6474;   /* labels, secondary text */
+  --color-ink-faint:   #9199a6;   /* placeholder, disabled */
+  --color-ink-inverse: #ffffff;   /* text on dark backgrounds */
+
+  /* ─────────────────────────────────────────────────
+     Status
+     ───────────────────────────────────────────────── */
+  --color-success:      #0a7a4b;
+  --color-success-bg:   #edf7f2;
+  --color-warning:      #a35c00;
+  --color-warning-bg:   #fff8ed;
+  --color-danger:       #c0172a;
+  --color-danger-bg:    #fef2f3;
+  --color-info:         #005eb8;
+  --color-info-bg:      #e6f1fb;
+
+  /* ─────────────────────────────────────────────────
+     Radius — tight enterprise feel
+     ───────────────────────────────────────────────── */
+  --radius-none: 0;
+  --radius-xs:   0.125rem;   /* 2px  */
+  --radius-sm:   0.1875rem;  /* 3px  */
+  --radius-md:   0.25rem;    /* 4px  */
+  --radius-lg:   0.375rem;   /* 6px  */
+  --radius-xl:   0.5rem;     /* 8px  */
+
+  /* ─────────────────────────────────────────────────
+     Shadows — subtle depth, not consumer-grade
+     ───────────────────────────────────────────────── */
+  --shadow-card:
+    0 1px 2px 0 rgb(0 18 90 / 0.06),
+    0 1px 3px 0 rgb(0 18 90 / 0.04);
+
+  --shadow-panel:
+    0 2px 6px -1px rgb(0 18 90 / 0.08),
+    0 1px 4px -2px rgb(0 18 90 / 0.06);
+
+  --shadow-elevated:
+    0 8px 16px -4px rgb(0 18 90 / 0.10),
+    0 4px 8px  -4px rgb(0 18 90 / 0.06);
+
+  --shadow-modal:
+    0 24px 48px -8px rgb(0 18 90 / 0.18),
+    0  8px 16px -4px rgb(0 18 90 / 0.10);
+
+  /* ─────────────────────────────────────────────────
+     Spacing — section-level layout rhythm
+     ───────────────────────────────────────────────── */
+  --spacing-section-xs: 1rem;      /* 16px — tight inner padding */
+  --spacing-section-sm: 1.5rem;    /* 24px — panel padding */
+  --spacing-section:    2.5rem;    /* 40px — page section gap */
+  --spacing-section-lg: 4rem;      /* 64px — hero / top-of-page breathing room */
+}
