@@ -1,6 +1,6 @@
 import { BrowserRouter } from 'react-router-dom'
 import AppShell from './components/shell/AppShell'
-import HomePage from './pages/Home'
+import HomePage from './features/home/HomePage'
 
 export default function App() {
   return (
