@@ -1,5 +1,5 @@
-import AppProviders from './providers/AppProviders'
-import AppShell from './components/shell/AppShell'
+import AppProviders from './app/AppProviders'
+import AppShell from './app/AppShell'
 import HomePage from './features/home/HomePage'
 
 export default function App() {
