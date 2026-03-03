@@ -30,7 +30,7 @@ export default function ModuleCard({ module }: ModuleCardProps) {
 
       <CardFooter>
         <Link
-          to={module.href}
+          to={module.basePath}
           className="inline-flex items-center gap-1.5 text-[12px] font-medium text-primary-600 hover:text-primary-700 transition-colors group-hover:gap-2"
           aria-label={`Open ${module.displayName}`}
         >

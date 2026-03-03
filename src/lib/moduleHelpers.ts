@@ -20,10 +20,14 @@ export function getModulesByCategory(category: ModuleCategory): PlatformModule[]
   return PLATFORM_MODULES.filter((m) => m.category === category)
 }
 
-/** Return modules accessible to a given set of roles.
- *  Expand the role → module mapping here as RBAC rules are defined. */
+/**
+ * Return modules accessible to a given set of roles.
+ * Modules with an empty roles array are accessible to all authenticated users.
+ */
 export function getModulesForRoles(roles: string[]): PlatformModule[] {
-  // TODO: replace with real role-permission mapping from AuthProvider/RBAC
-  void roles
-  return PLATFORM_MODULES
+  return PLATFORM_MODULES.filter(
+    (m) =>
+      m.permissions.roles.length === 0 ||
+      roles.some((r) => m.permissions.roles.includes(r)),
+  )
 }

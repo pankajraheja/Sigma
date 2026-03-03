@@ -9,6 +9,7 @@ import { Routes, Route } from 'react-router-dom'
 
 const HomePage            = lazy(() => import('../features/home/HomePage'))
 const CatalogPage         = lazy(() => import('../features/catalog/CatalogPage'))
+const IntakePage          = lazy(() => import('../features/intake/IntakePage'))
 const PrototypePage       = lazy(() => import('../features/prototype-builder/PrototypePage'))
 const AppBuilderPage      = lazy(() => import('../features/app-builder/AppBuilderPage'))
 const ForgePage           = lazy(() => import('../features/forge/ForgePage'))
@@ -28,7 +29,8 @@ export default function AppRoutes() {
     <Suspense fallback={<RouteLoader />}>
       <Routes>
         <Route path="/"                   element={<HomePage />} />
-        <Route path="/catalog/*"          element={<CatalogPage />} />
+        <Route path="/catalog/*"           element={<CatalogPage />} />
+        <Route path="/intake/*"            element={<IntakePage />} />
         <Route path="/prototype-builder/*" element={<PrototypePage />} />
         <Route path="/app-builder/*"      element={<AppBuilderPage />} />
         <Route path="/forge/*"            element={<ForgePage />} />

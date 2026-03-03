@@ -14,6 +14,7 @@ export const ENVIRONMENT: { label: string; variant: EnvironmentVariant } = {
 export const MAIN_NAV_ITEMS: MainNavItem[] = [
   { label: 'Home',                href: '/' },
   { label: 'Catalog',             href: '/catalog' },
+  { label: 'Intake',              href: '/intake' },
   { label: 'Prototype Builder',   href: '/prototype-builder' },
   { label: 'Application Builder', href: '/app-builder' },
   { label: 'FORGE',               href: '/forge',    emphasis: true },
