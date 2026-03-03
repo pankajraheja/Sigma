@@ -1,12 +1,11 @@
 import clsx from 'clsx'
-import type { AssetKind } from '../types'
 
 interface Config {
   label:   string
   classes: string
 }
 
-const KIND_CONFIG: Record<AssetKind, Config> = {
+const KIND_CONFIG: Record<string, Config> = {
   Dataset:   { label: 'Dataset',   classes: 'bg-primary-50 text-primary-600 border-primary-200' },
   API:       { label: 'API',       classes: 'bg-info-bg text-info border-info/20' },
   Report:    { label: 'Report',    classes: 'bg-surface-subtle text-primary-600 border-primary-100' },
@@ -18,13 +17,15 @@ const KIND_CONFIG: Record<AssetKind, Config> = {
   Connector: { label: 'Connector', classes: 'bg-info-bg text-info border-info/30' },
 }
 
+const FALLBACK_CLASSES = 'bg-surface-subtle text-ink-muted border-border'
+
 interface AssetKindBadgeProps {
-  kind:  AssetKind
+  kind:  string
   size?: 'sm' | 'md'
 }
 
 export default function AssetKindBadge({ kind, size = 'md' }: AssetKindBadgeProps) {
-  const cfg = KIND_CONFIG[kind]
+  const cfg = KIND_CONFIG[kind] ?? { label: kind, classes: FALLBACK_CLASSES }
 
   return (
     <span

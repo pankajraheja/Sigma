@@ -1,7 +1,6 @@
 import { Link, useParams, Navigate } from 'react-router-dom'
 import {
   ArrowLeft,
-  ArrowRight,
   User,
   Globe,
   Calendar,
@@ -21,17 +20,29 @@ import {
   Github,
   BookOpen,
   Wrench,
+  AlertCircle,
 } from 'lucide-react'
 import { Panel, PanelRow } from '../../components/ui/Panel'
-import { Card, CardBody, CardFooter } from '../../components/ui/Card'
 import AssetKindBadge from './components/AssetKindBadge'
 import PublicationStatusBadge from './components/PublicationStatusBadge'
-import { getAssetById, getRelatedAssets } from './mock/assets'
-import type { LinkedResourceKind } from './types'
+import { useCatalogAssetDetail } from './hooks/useCatalogAssetDetail'
+import { useAssetTaxonomy } from './hooks/useAssetTaxonomy'
+import type { BackendAssetVersion, BackendSourceRef } from './api/types'
 
-// ── Linked resource icon map ──────────────────────────────────────────────────
+// ── Source-ref → icon / kind map ──────────────────────────────────────────────
 
-const RESOURCE_ICON: Record<LinkedResourceKind, React.ElementType> = {
+type RefKind = 'documentation' | 'source' | 'lineage' | 'runbook' | 'jira' | 'github'
+
+const REF_TYPE_KIND: Record<BackendSourceRef['ref_type'], RefKind> = {
+  forge_asset_id:  'lineage',
+  github_repo:     'github',
+  dbt_model:       'source',
+  confluence_page: 'documentation',
+  jira_project:    'jira',
+  other:           'source',
+}
+
+const REF_KIND_ICON: Record<RefKind, React.ElementType> = {
   documentation: BookOpen,
   source:        FileText,
   lineage:       GitBranch,
@@ -42,13 +53,8 @@ const RESOURCE_ICON: Record<LinkedResourceKind, React.ElementType> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric',
-  })
-}
-
-function fmtShort(iso: string) {
+function fmtShort(iso: string | null) {
+  if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-US', {
     year: 'numeric', month: 'short', day: 'numeric',
   })
@@ -76,27 +82,57 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-function RelatedAssetCard({ asset }: { asset: ReturnType<typeof getAssetById> }) {
-  if (!asset) return null
+function VersionRow({ ver }: { ver: BackendAssetVersion }) {
   return (
-    <Card>
-      <CardBody className="p-3">
-        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-          <AssetKindBadge kind={asset.kind} size="sm" />
-          <PublicationStatusBadge status={asset.publicationStatus} size="sm" />
+    <PanelRow>
+      <span className="text-[11px] font-mono font-semibold text-ink w-20 shrink-0">
+        v{ver.version_tag}
+        {ver.is_current && (
+          <span className="ml-1.5 text-[9px] font-semibold text-success border border-success/30 bg-success-bg rounded px-1 py-0.5 align-middle">
+            current
+          </span>
+        )}
+      </span>
+      <span className="text-ink flex-1 text-[12px]">{ver.changelog ?? '—'}</span>
+      <div className="text-right shrink-0">
+        <p className="text-[11px] text-ink-faint">{fmtShort(ver.released_at)}</p>
+        {ver.released_by && (
+          <p className="text-[10px] text-ink-faint">{ver.released_by}</p>
+        )}
+      </div>
+    </PanelRow>
+  )
+}
+
+// ── Loading skeleton ──────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="px-8 py-10 animate-pulse">
+      <div className="max-w-6xl mx-auto">
+        <div className="h-3 w-48 bg-surface-subtle rounded mb-6" />
+        <div className="bg-surface border border-border rounded-lg p-6 mb-6">
+          <div className="flex gap-2 mb-4">
+            <div className="h-5 w-16 bg-surface-subtle rounded" />
+            <div className="h-5 w-12 bg-surface-subtle rounded" />
+          </div>
+          <div className="h-7 w-2/3 bg-surface-subtle rounded mb-3" />
+          <div className="h-4 w-full bg-surface-subtle rounded mb-1.5" />
+          <div className="h-4 w-4/5 bg-surface-subtle rounded" />
         </div>
-        <p className="text-[12px] font-semibold text-ink leading-snug">{asset.name}</p>
-        <p className="text-[11px] text-ink-faint mt-0.5">{asset.owner}</p>
-      </CardBody>
-      <CardFooter>
-        <Link
-          to={`/catalog/assets/${asset.id}`}
-          className="text-[11px] font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors"
-        >
-          View <ArrowRight size={10} strokeWidth={2} />
-        </Link>
-      </CardFooter>
-    </Card>
+        <div className="flex gap-6">
+          <div className="flex-1 space-y-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="bg-surface border border-border rounded-lg p-4 h-28" />
+            ))}
+          </div>
+          <div className="w-64 space-y-4">
+            <div className="bg-surface border border-border rounded-md p-4 h-40" />
+            <div className="bg-surface border border-border rounded-md p-4 h-20" />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -104,11 +140,56 @@ function RelatedAssetCard({ asset }: { asset: ReturnType<typeof getAssetById> })
 
 export default function CatalogAssetDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const asset   = id ? getAssetById(id) : undefined
+  const { detail, versions, loading, error, notFound } = useCatalogAssetDetail(id)
+  const { classifications, tags: assetTags } = useAssetTaxonomy(detail?.asset.id)
 
-  if (!asset) return <Navigate to="/catalog" replace />
+  if (loading) return <LoadingSkeleton />
 
-  const related = getRelatedAssets(asset)
+  if (notFound) return <Navigate to="/catalog" replace />
+
+  if (error) {
+    return (
+      <div className="px-8 py-10">
+        <div className="max-w-6xl mx-auto">
+          <Link
+            to="/catalog/discovery"
+            className="inline-flex items-center gap-1.5 text-[12px] text-ink-muted hover:text-primary-600 transition-colors mb-6"
+          >
+            <ArrowLeft size={13} strokeWidth={2} />
+            Back to Discovery
+          </Link>
+          <div className="flex items-center gap-3 px-4 py-3 rounded-md bg-red-50 border border-red-200 text-red-600 text-[13px]">
+            <AlertCircle size={15} strokeWidth={2} />
+            {error}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!detail) return null
+
+  const { asset, sourceRef } = detail
+  const currentVersion = versions.find((v) => v.is_current) ?? versions[0] ?? null
+
+  // Group taxonomy classifications by scheme_code
+  const classificationGroups = Object.entries(
+    classifications.reduce<Record<string, typeof classifications>>((acc, c) => {
+      const key = c.scheme_code
+      ;(acc[key] ??= []).push(c)
+      return acc
+    }, {}),
+  )
+
+  // Build linked resources list from the primary source ref
+  const linkedResources = sourceRef
+    ? [{
+        label:   sourceRef.label ?? sourceRef.ref_value,
+        href:    sourceRef.href,
+        icon:    REF_KIND_ICON[REF_TYPE_KIND[sourceRef.ref_type]],
+        refValue: sourceRef.ref_value,
+      }]
+    : []
 
   return (
     <div className="px-8 py-10">
@@ -135,17 +216,17 @@ export default function CatalogAssetDetailPage() {
         {/* ── Asset header ─────────────────────────────────────────── */}
         <div className="bg-surface border border-border rounded-lg p-6 mb-6 shadow-card">
           <div className="flex flex-wrap items-center gap-2 mb-4">
-            <AssetKindBadge kind={asset.kind} />
-            <PublicationStatusBadge status={asset.publicationStatus} />
-            {asset.nfrs.containsPII && (
+            <AssetKindBadge kind={asset.asset_kind} />
+            <PublicationStatusBadge status={asset.publication_status} />
+            {asset.contains_pii && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-sm border bg-warning-bg border-warning/20 text-warning">
                 <ShieldAlert size={10} strokeWidth={2} />
                 Contains PII
               </span>
             )}
-            {asset.nfrs.dataClassification !== 'Internal' && (
+            {asset.data_classification && asset.data_classification !== 'Internal' && (
               <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-sm border bg-surface-subtle border-border text-ink-muted">
-                {asset.nfrs.dataClassification}
+                {asset.data_classification}
               </span>
             )}
           </div>
@@ -155,29 +236,35 @@ export default function CatalogAssetDetailPage() {
           </h1>
 
           <p className="text-[14px] text-ink-muted leading-relaxed mb-4 max-w-2xl">
-            {asset.shortSummary}
+            {asset.short_summary ?? ''}
           </p>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-muted">
-            <span className="flex items-center gap-1.5">
-              <Globe size={12} strokeWidth={1.75} className="text-ink-faint" />
-              {asset.domain}
-            </span>
-            <span className="text-border-strong" aria-hidden="true">·</span>
+            {asset.domain && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <Globe size={12} strokeWidth={1.75} className="text-ink-faint" />
+                  {asset.domain}
+                </span>
+                <span className="text-border-strong" aria-hidden="true">·</span>
+              </>
+            )}
             <span className="flex items-center gap-1.5">
               <User size={12} strokeWidth={1.75} className="text-ink-faint" />
-              {asset.owner}
+              <span className="font-mono text-[12px] truncate max-w-40" title={asset.owner_id}>
+                {asset.owner_id}
+              </span>
             </span>
             <span className="text-border-strong" aria-hidden="true">·</span>
             <span className="flex items-center gap-1.5">
               <Calendar size={12} strokeWidth={1.75} className="text-ink-faint" />
-              Updated {fmtShort(asset.updatedAt)}
+              Updated {fmtShort(asset.updated_at)}
             </span>
-            {asset.publishedAt && (
+            {asset.published_at && (
               <>
                 <span className="text-border-strong" aria-hidden="true">·</span>
                 <span className="text-[13px] text-ink-muted">
-                  Published {fmtShort(asset.publishedAt)}
+                  Published {fmtShort(asset.published_at)}
                 </span>
               </>
             )}
@@ -191,131 +278,176 @@ export default function CatalogAssetDetailPage() {
           <div className="flex-1 min-w-0 space-y-4">
 
             {/* Description */}
-            <Panel title="Description" Icon={Info}>
-              <div className="px-4 py-4">
-                <p className="text-[13px] text-ink leading-relaxed">
-                  {asset.description}
-                </p>
-              </div>
-            </Panel>
+            {asset.description && (
+              <Panel title="Description" Icon={Info}>
+                <div className="px-4 py-4">
+                  <p className="text-[13px] text-ink leading-relaxed">
+                    {asset.description}
+                  </p>
+                </div>
+              </Panel>
+            )}
 
             {/* Taxonomy & Classification */}
             <Panel title="Taxonomy & Classification" Icon={Globe} meta="Governance metadata">
+              {asset.domain && (
+                <PanelRow>
+                  <span className="text-ink-faint w-40 shrink-0">Domain</span>
+                  <span className="text-ink">{asset.domain}</span>
+                </PanelRow>
+              )}
+              {classificationGroups.map(([scheme, items]) => (
+                <PanelRow key={scheme}>
+                  <span className="text-ink-faint w-40 shrink-0 capitalize">
+                    {scheme.replace(/_/g, ' ')}
+                  </span>
+                  <div className="flex flex-wrap gap-1 justify-end">
+                    {items.map((item) => (
+                      <span
+                        key={item.id}
+                        className="inline-flex items-center px-1.5 py-0.5 bg-surface-subtle border border-border rounded-sm text-[11px] font-semibold text-ink-muted"
+                      >
+                        {item.term_label}
+                      </span>
+                    ))}
+                  </div>
+                </PanelRow>
+              ))}
               <PanelRow>
-                <span className="text-ink-faint w-32 shrink-0">Domain</span>
-                <span className="text-ink">{asset.domain}</span>
+                <span className="text-ink-faint w-40 shrink-0">Function Group</span>
+                <span className="text-ink font-mono text-[11px]">{asset.function_group_id ?? '—'}</span>
               </PanelRow>
               <PanelRow>
-                <span className="text-ink-faint w-32 shrink-0">Function Group</span>
-                <span className="text-ink">{asset.functionGroup}</span>
+                <span className="text-ink-faint w-40 shrink-0">Industry Sector</span>
+                <span className="text-ink font-mono text-[11px]">{asset.industry_sector_id ?? '—'}</span>
               </PanelRow>
               <PanelRow>
-                <span className="text-ink-faint w-32 shrink-0">Industry Sector</span>
-                <span className="text-ink">{asset.industrySector}</span>
+                <span className="text-ink-faint w-40 shrink-0">Service Offering</span>
+                <span className="text-ink font-mono text-[11px]">{asset.service_offering_id ?? '—'}</span>
               </PanelRow>
               <PanelRow>
-                <span className="text-ink-faint w-32 shrink-0">Service Offering</span>
-                <span className="text-ink">{asset.serviceOffering}</span>
+                <span className="text-ink-faint w-40 shrink-0">Country</span>
+                <span className="text-ink font-mono text-[11px]">{asset.primary_country_id ?? '—'}</span>
               </PanelRow>
               <PanelRow>
-                <span className="text-ink-faint w-32 shrink-0">Countries</span>
-                <div className="flex flex-wrap gap-1">
-                  {asset.country.map(c => (
-                    <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-primary-50 border border-primary-100 text-primary-600 font-medium">
-                      {c}
+                <span className="text-ink-faint w-40 shrink-0">OpCo</span>
+                <span className="text-ink font-mono text-[11px]">{asset.opco_id ?? '—'}</span>
+              </PanelRow>
+            </Panel>
+
+            {/* Compliance tags */}
+            {asset.compliance_tags.length > 0 && (
+              <Panel title="Compliance Tags" Icon={Tag} meta={`${asset.compliance_tags.length}`}>
+                <div className="px-4 py-3 flex flex-wrap gap-1.5">
+                  {asset.compliance_tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2 py-0.5 rounded-sm bg-surface-subtle border border-border text-[11px] font-mono text-ink-muted"
+                    >
+                      {tag}
                     </span>
                   ))}
                 </div>
-              </PanelRow>
-              <PanelRow>
-                <span className="text-ink-faint w-32 shrink-0">OpCo</span>
-                <div className="flex flex-wrap gap-1">
-                  {asset.opco.map(o => (
-                    <span key={o} className="text-[11px] text-ink">{o}</span>
+              </Panel>
+            )}
+
+            {/* Informal tags — from catalog.asset_tags */}
+            {assetTags.length > 0 && (
+              <Panel title="Tags" Icon={Tag} meta={`${assetTags.length}`}>
+                <div className="px-4 py-3 flex flex-wrap gap-1.5">
+                  {assetTags.map((t) => (
+                    <span
+                      key={t.tag_id}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-subtle border border-border text-[11px] text-ink-muted"
+                    >
+                      #{t.tag_label}
+                    </span>
                   ))}
                 </div>
-              </PanelRow>
-            </Panel>
-
-            {/* Tags */}
-            <Panel title="Tags" Icon={Tag} meta={`${asset.tags.length} tags`}>
-              <div className="px-4 py-3 flex flex-wrap gap-1.5">
-                {asset.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center px-2 py-0.5 rounded-sm bg-surface-subtle border border-border text-[11px] font-mono text-ink-muted"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </Panel>
+              </Panel>
+            )}
 
             {/* NFRs */}
             <Panel title="Non-Functional Requirements" Icon={ShieldCheck} meta="Informational">
-              <PanelRow>
-                <span className="text-ink-faint w-40 shrink-0">Data Classification</span>
-                <span className="text-ink font-medium">{asset.nfrs.dataClassification}</span>
-              </PanelRow>
-              <PanelRow>
-                <span className="text-ink-faint w-40 shrink-0">Hosting Type</span>
-                <span className="flex items-center gap-1.5 text-ink">
-                  <Server size={11} strokeWidth={1.75} className="text-ink-faint" />
-                  {asset.nfrs.hostingType}
-                </span>
-              </PanelRow>
+              {asset.data_classification && (
+                <PanelRow>
+                  <span className="text-ink-faint w-40 shrink-0">Data Classification</span>
+                  <span className="text-ink font-medium">{asset.data_classification}</span>
+                </PanelRow>
+              )}
+              {asset.hosting_type && (
+                <PanelRow>
+                  <span className="text-ink-faint w-40 shrink-0">Hosting Type</span>
+                  <span className="flex items-center gap-1.5 text-ink">
+                    <Server size={11} strokeWidth={1.75} className="text-ink-faint" />
+                    {asset.hosting_type}
+                  </span>
+                </PanelRow>
+              )}
               <PanelRow>
                 <span className="text-ink-faint w-40 shrink-0">Contains PII</span>
-                <span className={`flex items-center gap-1.5 font-medium ${asset.nfrs.containsPII ? 'text-warning' : 'text-success'}`}>
-                  {asset.nfrs.containsPII
+                <span className={`flex items-center gap-1.5 font-medium ${asset.contains_pii ? 'text-warning' : 'text-success'}`}>
+                  {asset.contains_pii
                     ? <><ShieldAlert size={11} strokeWidth={2} /> Yes</>
                     : <><ShieldCheck size={11} strokeWidth={2} /> No</>
                   }
                 </span>
               </PanelRow>
-              {asset.nfrs.sla && (
+              {asset.sla_description && (
                 <PanelRow>
                   <span className="text-ink-faint w-40 shrink-0">SLA</span>
-                  <span className="text-ink">{asset.nfrs.sla}</span>
+                  <span className="text-ink">{asset.sla_description}</span>
                 </PanelRow>
               )}
-              {asset.nfrs.retentionPolicy && (
+              {asset.retention_requirement && (
                 <PanelRow>
                   <span className="text-ink-faint w-40 shrink-0">Retention Policy</span>
-                  <span className="text-ink">{asset.nfrs.retentionPolicy}</span>
+                  <span className="text-ink">{asset.retention_requirement}</span>
                 </PanelRow>
               )}
-              {asset.nfrs.complianceTags.length > 0 && (
+              {asset.data_residency && (
                 <PanelRow>
-                  <span className="text-ink-faint w-40 shrink-0">Compliance</span>
-                  <div className="flex flex-wrap gap-1">
-                    {asset.nfrs.complianceTags.map(ct => (
-                      <span key={ct} className="text-[10px] px-1.5 py-0.5 rounded bg-surface-subtle border border-border text-ink-muted font-mono">
-                        {ct}
-                      </span>
-                    ))}
-                  </div>
+                  <span className="text-ink-faint w-40 shrink-0">Data Residency</span>
+                  <span className="text-ink">{asset.data_residency}</span>
+                </PanelRow>
+              )}
+              {asset.audience_type && (
+                <PanelRow>
+                  <span className="text-ink-faint w-40 shrink-0">Audience</span>
+                  <span className="text-ink">{asset.audience_type}</span>
+                </PanelRow>
+              )}
+              {asset.business_criticality && (
+                <PanelRow>
+                  <span className="text-ink-faint w-40 shrink-0">Business Criticality</span>
+                  <span className="text-ink">{asset.business_criticality}</span>
                 </PanelRow>
               )}
             </Panel>
 
-            {/* Linked Resources */}
-            {asset.linkedResources.length > 0 && (
-              <Panel title="Linked Resources" Icon={Link2} meta={`${asset.linkedResources.length}`}>
-                {asset.linkedResources.map((res) => {
-                  const ResIcon = RESOURCE_ICON[res.kind] ?? ExternalLink
+            {/* Linked Resources — from source refs */}
+            {linkedResources.length > 0 && (
+              <Panel title="Linked Resources" Icon={Link2} meta={`${linkedResources.length}`}>
+                {linkedResources.map((res) => {
+                  const ResIcon = res.icon
                   return (
                     <PanelRow key={res.label}>
                       <ResIcon size={12} strokeWidth={1.75} className="text-ink-faint shrink-0" />
                       <span className="text-ink flex-1">{res.label}</span>
-                      <a
-                        href={res.href}
-                        className="text-[11px] text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors shrink-0"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open <ExternalLink size={10} strokeWidth={2} />
-                      </a>
+                      {res.href ? (
+                        <a
+                          href={res.href}
+                          className="text-[11px] text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors shrink-0"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open <ExternalLink size={10} strokeWidth={2} />
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-ink-faint font-mono truncate max-w-32 shrink-0">
+                          {res.refValue}
+                        </span>
+                      )}
                     </PanelRow>
                   )
                 })}
@@ -323,85 +455,33 @@ export default function CatalogAssetDetailPage() {
             )}
 
             {/* Version History */}
-            <Panel title="Version History" Icon={History} meta={`v${asset.currentVersion} current`}>
-              {asset.versions.map((ver) => (
-                <PanelRow key={ver.version}>
-                  <span className="text-[11px] font-mono font-semibold text-ink w-16 shrink-0">
-                    v{ver.version}
-                  </span>
-                  <span className="text-ink flex-1 text-[12px]">{ver.summary}</span>
-                  <div className="text-right shrink-0">
-                    <p className="text-[11px] text-ink-faint">{fmtShort(ver.releasedAt)}</p>
-                    <p className="text-[10px] text-ink-faint">{ver.changedBy}</p>
-                  </div>
-                </PanelRow>
-              ))}
-            </Panel>
-
-            {/* Audit Timeline */}
-            <Panel title="Audit Timeline" Icon={ClipboardList} meta="Change log">
-              {asset.auditLog.length === 0 ? (
+            <Panel
+              title="Version History"
+              Icon={History}
+              meta={currentVersion ? `v${currentVersion.version_tag} current` : 'no versions'}
+            >
+              {versions.length === 0 ? (
                 <div className="px-4 py-3 text-[12px] text-ink-faint italic">
-                  No audit entries yet.
+                  No version records found.
                 </div>
               ) : (
-                <div className="px-4 py-3">
-                  <ol className="relative border-l border-border-muted space-y-4 ml-2">
-                    {asset.auditLog.map((entry, i) => (
-                      <li key={i} className="pl-4">
-                        <div className="absolute -left-1.5 w-3 h-3 rounded-full bg-surface border-2 border-primary-300" aria-hidden="true" />
-                        <p className="text-[12px] font-medium text-ink">{entry.action}</p>
-                        <p className="text-[11px] text-ink-faint mt-0.5">
-                          {entry.performedBy} · {fmtShort(entry.at)}
-                        </p>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
+                versions.map((ver) => <VersionRow key={ver.id} ver={ver} />)
               )}
             </Panel>
 
-            {/* Certification Summary */}
-            {asset.certification ? (
-              <Panel title="Certification Summary" Icon={Award} meta="Governance approval">
-                <PanelRow>
-                  <span className="text-ink-faint w-32 shrink-0">Certified by</span>
-                  <span className="text-ink">{asset.certification.certifiedBy}</span>
-                </PanelRow>
-                <PanelRow>
-                  <span className="text-ink-faint w-32 shrink-0">Certified on</span>
-                  <span className="text-ink">{fmt(asset.certification.certifiedAt)}</span>
-                </PanelRow>
-                <PanelRow>
-                  <span className="text-ink-faint w-32 shrink-0">Valid until</span>
-                  <span className="text-ink">{fmt(asset.certification.validUntil)}</span>
-                </PanelRow>
-                <PanelRow>
-                  <span className="text-ink-faint w-32 shrink-0">Standard</span>
-                  <span className="text-ink">{asset.certification.standard}</span>
-                </PanelRow>
-                <PanelRow>
-                  <span className="text-ink-faint w-32 shrink-0">Compliance score</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 h-1.5 rounded-full bg-surface-subtle overflow-hidden">
-                      <div
-                        className="h-full bg-success rounded-full"
-                        style={{ width: `${asset.certification.score}%` }}
-                      />
-                    </div>
-                    <span className="text-[12px] font-semibold text-success">
-                      {asset.certification.score}/100
-                    </span>
-                  </div>
-                </PanelRow>
-              </Panel>
-            ) : (
-              <Panel title="Certification Summary" Icon={Award} meta="Pending">
-                <div className="px-4 py-3 text-[12px] text-ink-faint italic">
-                  This asset has not yet been certified. Certification is required before publication.
-                </div>
-              </Panel>
-            )}
+            {/* Audit Timeline — not yet available from backend */}
+            <Panel title="Audit Timeline" Icon={ClipboardList} meta="Change log">
+              <div className="px-4 py-3 text-[12px] text-ink-faint italic">
+                Audit log not yet available.
+              </div>
+            </Panel>
+
+            {/* Certification Summary — not yet available from backend */}
+            <Panel title="Certification Summary" Icon={Award} meta="Pending">
+              <div className="px-4 py-3 text-[12px] text-ink-faint italic">
+                This asset has not yet been certified. Certification is required before publication.
+              </div>
+            </Panel>
           </div>
 
           {/* ── Right: sidebar ────────────────────────────────────── */}
@@ -409,27 +489,33 @@ export default function CatalogAssetDetailPage() {
 
             {/* At a Glance */}
             <SidebarCard title="At a Glance">
-              <MetaRow label="Version">
-                <span className="text-[12px] font-mono font-semibold text-ink">v{asset.currentVersion}</span>
-              </MetaRow>
+              {currentVersion && (
+                <MetaRow label="Version">
+                  <span className="text-[12px] font-mono font-semibold text-ink">
+                    v{currentVersion.version_tag}
+                  </span>
+                </MetaRow>
+              )}
               <MetaRow label="Usage">
-                <span className="text-[12px] font-semibold text-ink">{asset.usageCount.toLocaleString()}</span>
+                <span className="text-[12px] font-semibold text-ink">
+                  {asset.usage_count.toLocaleString()}
+                </span>
               </MetaRow>
               <MetaRow label="Kind">
-                <AssetKindBadge kind={asset.kind} size="sm" />
+                <AssetKindBadge kind={asset.asset_kind} size="sm" />
               </MetaRow>
               <MetaRow label="Status">
-                <PublicationStatusBadge status={asset.publicationStatus} size="sm" />
+                <PublicationStatusBadge status={asset.publication_status} size="sm" />
               </MetaRow>
               <MetaRow label="Created">
-                <span className="text-[12px] text-ink">{fmtShort(asset.createdAt)}</span>
+                <span className="text-[12px] text-ink">{fmtShort(asset.created_at)}</span>
               </MetaRow>
               <MetaRow label="Updated">
-                <span className="text-[12px] text-ink">{fmtShort(asset.updatedAt)}</span>
+                <span className="text-[12px] text-ink">{fmtShort(asset.updated_at)}</span>
               </MetaRow>
-              {asset.publishedAt && (
+              {asset.published_at && (
                 <MetaRow label="Published">
-                  <span className="text-[12px] text-ink">{fmtShort(asset.publishedAt)}</span>
+                  <span className="text-[12px] text-ink">{fmtShort(asset.published_at)}</span>
                 </MetaRow>
               )}
             </SidebarCard>
@@ -440,30 +526,14 @@ export default function CatalogAssetDetailPage() {
                 <BarChart2 size={14} strokeWidth={1.75} className="text-primary-600 shrink-0" />
                 <div>
                   <p className="text-[12px] font-semibold text-ink capitalize">
-                    {asset.sourceModule.replace(/-/g, ' ')}
+                    {asset.source_module_id.replace(/-/g, ' ')}
                   </p>
-                  {asset.sourceRef && (
-                    <p className="text-[10px] text-ink-faint font-mono truncate mt-0.5">
-                      {asset.sourceRef}
-                    </p>
-                  )}
+                  <p className="text-[10px] text-ink-faint font-mono truncate mt-0.5">
+                    {asset.source_entity_type} · {asset.source_entity_id}
+                  </p>
                 </div>
               </div>
             </SidebarCard>
-
-            {/* Related assets in same domain */}
-            {related.length > 0 && (
-              <div>
-                <div className="text-[11px] font-semibold tracking-widest uppercase text-ink-faint mb-3">
-                  Related · {asset.domain}
-                </div>
-                <div className="space-y-3">
-                  {related.map(rel => (
-                    <RelatedAssetCard key={rel.id} asset={rel} />
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Navigation */}
             <Link

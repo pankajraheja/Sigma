@@ -8,24 +8,33 @@ import {
   ChevronDown,
   X,
   ShieldAlert,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import SectionHeader from '../../components/ui/SectionHeader'
 import { Card, CardBody, CardFooter } from '../../components/ui/Card'
 import AssetKindBadge from './components/AssetKindBadge'
 import PublicationStatusBadge from './components/PublicationStatusBadge'
-import {
-  MOCK_CATALOG_ASSETS,
-  ALL_KINDS,
-  ALL_PUBLICATION_STATUSES,
-  ALL_COUNTRIES,
-  ALL_OPCOS,
-  ALL_FUNCTION_GROUPS,
-  ALL_INDUSTRY_SECTORS,
-  ALL_SERVICE_OFFERINGS,
-  ALL_DATA_CLASSIFICATIONS,
-  ALL_HOSTING_TYPES,
-} from './mock/assets'
-import type { AssetKind, PublicationStatus, DataClassification, HostingType, CatalogSortKey } from './types'
+import { useCatalogAssets } from './hooks/useCatalogAssets'
+import { useTaxonomyTerms } from './hooks/useTaxonomyTerms'
+import type { BackendAsset, BackendPublicationStatus, CatalogListParams } from './api/types'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const PUBLICATION_STATUSES: { value: BackendPublicationStatus; label: string }[] = [
+  { value: 'ga',         label: 'GA' },
+  { value: 'preview',    label: 'Preview' },
+  { value: 'deprecated', label: 'Deprecated' },
+  { value: 'retired',    label: 'Retired' },
+]
+
+const DATA_CLASSIFICATIONS = ['Public', 'Internal', 'Confidential', 'Restricted'] as const
+const HOSTING_TYPES        = ['Cloud', 'On-Premise', 'Hybrid', 'SaaS'] as const
+
+type SortKey = 'updated_at' | 'published_at' | 'name'
+
+const PAGE_SIZE = 24
 
 // ── Filter section (collapsible) ──────────────────────────────────────────────
 
@@ -69,6 +78,33 @@ function FilterGroup({
 
       {open && <div className="mt-2 space-y-1.5">{children}</div>}
     </div>
+  )
+}
+
+function FilterRadio({
+  label,
+  name,
+  checked,
+  onChange,
+}: {
+  label:    string
+  name:     string
+  checked:  boolean
+  onChange: () => void
+}) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer group select-none">
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={onChange}
+        className="w-3.5 h-3.5 border-border accent-primary-600 cursor-pointer"
+      />
+      <span className="text-[12px] text-ink group-hover:text-primary-600 transition-colors">
+        {label}
+      </span>
+    </label>
   )
 }
 
@@ -128,20 +164,22 @@ function PiiRadio({
 
 // ── Result card ───────────────────────────────────────────────────────────────
 
-function ResultCard({ asset }: { asset: typeof MOCK_CATALOG_ASSETS[0] }) {
+function ResultCard({ asset }: { asset: BackendAsset }) {
   return (
     <Card>
       <CardBody>
         {/* Badges row */}
         <div className="flex items-center flex-wrap gap-1.5 mb-3">
-          <AssetKindBadge kind={asset.kind} />
-          <PublicationStatusBadge status={asset.publicationStatus} />
-          {asset.nfrs.dataClassification !== 'Public' && asset.nfrs.dataClassification !== 'Internal' && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border bg-surface-subtle border-border text-ink-muted">
-              {asset.nfrs.dataClassification}
-            </span>
-          )}
-          {asset.nfrs.containsPII && (
+          <AssetKindBadge kind={asset.asset_kind} />
+          <PublicationStatusBadge status={asset.publication_status} />
+          {asset.data_classification &&
+            asset.data_classification !== 'Public' &&
+            asset.data_classification !== 'Internal' && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border bg-surface-subtle border-border text-ink-muted">
+                {asset.data_classification}
+              </span>
+            )}
+          {asset.contains_pii && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border bg-warning-bg border-warning/20 text-warning">
               <ShieldAlert size={9} strokeWidth={2} />
               PII
@@ -156,25 +194,25 @@ function ResultCard({ asset }: { asset: typeof MOCK_CATALOG_ASSETS[0] }) {
 
         {/* Summary */}
         <p className="text-[12px] text-ink-muted leading-relaxed line-clamp-2 mb-3">
-          {asset.shortSummary}
+          {asset.short_summary ?? ''}
         </p>
 
         {/* Meta row */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-faint mt-auto">
-          <span>{asset.domain}</span>
-          <span aria-hidden="true">·</span>
-          <span>{asset.owner}</span>
-          <span aria-hidden="true">·</span>
-          <span>v{asset.currentVersion}</span>
-          <span className="ml-auto">{asset.usageCount.toLocaleString()} uses</span>
+          {asset.domain && <span>{asset.domain}</span>}
+          {asset.domain && <span aria-hidden="true">·</span>}
+          <span className="font-mono truncate max-w-25" title={asset.source_module_id}>
+            {asset.source_module_id}
+          </span>
+          <span className="ml-auto">{asset.usage_count.toLocaleString()} uses</span>
         </div>
       </CardBody>
 
       <CardFooter>
         <div className="flex items-center justify-between gap-2">
-          {/* First 3 tags */}
+          {/* Compliance tags */}
           <div className="flex flex-wrap gap-1 min-w-0">
-            {asset.tags.slice(0, 3).map((tag) => (
+            {asset.compliance_tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
                 className="text-[10px] px-1.5 py-0.5 rounded bg-surface-subtle border border-border text-ink-faint font-mono truncate max-w-20"
@@ -182,9 +220,9 @@ function ResultCard({ asset }: { asset: typeof MOCK_CATALOG_ASSETS[0] }) {
                 {tag}
               </span>
             ))}
-            {asset.tags.length > 3 && (
+            {asset.compliance_tags.length > 3 && (
               <span className="text-[10px] text-ink-faint py-0.5">
-                +{asset.tags.length - 3}
+                +{asset.compliance_tags.length - 3}
               </span>
             )}
           </div>
@@ -219,34 +257,104 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
   )
 }
 
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="bg-surface border border-border rounded-lg p-4 space-y-3 animate-pulse">
+      <div className="flex gap-2">
+        <div className="h-5 w-16 bg-surface-subtle rounded" />
+        <div className="h-5 w-10 bg-surface-subtle rounded" />
+      </div>
+      <div className="h-4 w-3/4 bg-surface-subtle rounded" />
+      <div className="h-3 w-full bg-surface-subtle rounded" />
+      <div className="h-3 w-2/3 bg-surface-subtle rounded" />
+    </div>
+  )
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CatalogDiscoveryPage() {
   const [searchParams] = useSearchParams()
 
-  // Pre-populate from URL query params (from home page chips)
-  const initialKind   = searchParams.get('kind')   as AssetKind | null
-  const initialStatus = searchParams.get('status') as PublicationStatus | null
+  const initialKind   = searchParams.get('kind') ?? ''
+  const initialStatus = searchParams.get('status') as BackendPublicationStatus | null
 
-  // Filter state
-  const [selectedKinds,    setSelectedKinds]    = useState<Set<AssetKind>>(
-    initialKind ? new Set([initialKind]) : new Set()
-  )
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<PublicationStatus>>(
-    initialStatus ? new Set([initialStatus]) : new Set()
-  )
-  const [selectedCountries,    setSelectedCountries]    = useState<Set<string>>(new Set())
-  const [selectedOpcos,        setSelectedOpcos]        = useState<Set<string>>(new Set())
-  const [selectedFunctions,    setSelectedFunctions]    = useState<Set<string>>(new Set())
-  const [selectedSectors,      setSelectedSectors]      = useState<Set<string>>(new Set())
-  const [selectedOfferings,    setSelectedOfferings]    = useState<Set<string>>(new Set())
-  const [selectedClassifs,     setSelectedClassifs]     = useState<Set<DataClassification>>(new Set())
-  const [selectedHosting,      setSelectedHosting]      = useState<Set<HostingType>>(new Set())
-  const [piiFilter,            setPiiFilter]            = useState<'all' | 'yes' | 'no'>('all')
-  const [sortBy,               setSortBy]               = useState<CatalogSortKey>('updated')
-  const [searchText,           setSearchText]           = useState('')
+  // ── Taxonomy terms from backend ───────────────────────────────────────────
+  const { terms: kindTerms }           = useTaxonomyTerms('asset_kind')
+  const { terms: domainTerms }         = useTaxonomyTerms('domain')
+  const { terms: complianceTagTerms }  = useTaxonomyTerms('compliance_tag')
 
-  // Generic toggle helper
+  // ── Server-side filter state ──────────────────────────────────────────────
+  const [selectedKind,          setSelectedKind]          = useState<string>(initialKind)
+  const [selectedStatus,        setSelectedStatus]        = useState<BackendPublicationStatus | ''>(
+    initialStatus ?? '',
+  )
+  const [selectedDomain,        setSelectedDomain]        = useState<string>('')
+  const [selectedComplianceTag, setSelectedComplianceTag] = useState<string>('')
+  const [page, setPage] = useState(1)
+  const [sort, setSort] = useState<SortKey>('updated_at')
+
+  // ── Client-side filter state (applied to loaded page) ────────────────────
+  const [selectedClassifs, setSelectedClassifs] = useState<Set<string>>(new Set())
+  const [selectedHosting,  setSelectedHosting]  = useState<Set<string>>(new Set())
+  const [piiFilter,        setPiiFilter]        = useState<'all' | 'yes' | 'no'>('all')
+  const [searchText,       setSearchText]       = useState('')
+
+  // Build server-side params
+  const serverParams: CatalogListParams = {
+    ...(selectedKind          ? { asset_kind:         selectedKind }                              : {}),
+    ...(selectedStatus        ? { publication_status: selectedStatus as BackendPublicationStatus } : {}),
+    ...(selectedDomain        ? { domain:             selectedDomain }                            : {}),
+    ...(selectedComplianceTag ? { compliance_tag:     selectedComplianceTag }                     : {}),
+    page,
+    pageSize: PAGE_SIZE,
+    sort:     sort as CatalogListParams['sort'],
+    order:    'desc',
+  }
+
+  const { data, loading, error } = useCatalogAssets(serverParams)
+
+  const allItems   = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
+
+  // ── Client-side filter on loaded page ────────────────────────────────────
+  const results = useMemo(() => {
+    let list = allItems
+
+    const q = searchText.trim().toLowerCase()
+    if (q) {
+      list = list.filter(
+        (a) =>
+          a.name.toLowerCase().includes(q) ||
+          (a.short_summary ?? '').toLowerCase().includes(q) ||
+          a.compliance_tags.some((t) => t.toLowerCase().includes(q)) ||
+          (a.domain ?? '').toLowerCase().includes(q),
+      )
+    }
+
+    if (selectedClassifs.size > 0)
+      list = list.filter((a) => a.data_classification && selectedClassifs.has(a.data_classification))
+    if (selectedHosting.size > 0)
+      list = list.filter((a) => a.hosting_type && selectedHosting.has(a.hosting_type))
+    if (piiFilter === 'yes') list = list.filter((a) => a.contains_pii)
+    if (piiFilter === 'no')  list = list.filter((a) => !a.contains_pii)
+
+    return list
+  }, [allItems, searchText, selectedClassifs, selectedHosting, piiFilter])
+
+  // Counts derived from loaded page for filter labels
+  const classifCounts = useMemo(
+    () => Object.fromEntries(DATA_CLASSIFICATIONS.map((c) => [c, allItems.filter((a) => a.data_classification === c).length])),
+    [allItems],
+  )
+  const hostingCounts = useMemo(
+    () => Object.fromEntries(HOSTING_TYPES.map((h) => [h, allItems.filter((a) => a.hosting_type === h).length])),
+    [allItems],
+  )
+
   function toggle<T>(set: Set<T>, value: T): Set<T> {
     const next = new Set(set)
     next.has(value) ? next.delete(value) : next.add(value)
@@ -254,75 +362,46 @@ export default function CatalogDiscoveryPage() {
   }
 
   function clearAll() {
-    setSelectedKinds(new Set())
-    setSelectedStatuses(new Set())
-    setSelectedCountries(new Set())
-    setSelectedOpcos(new Set())
-    setSelectedFunctions(new Set())
-    setSelectedSectors(new Set())
-    setSelectedOfferings(new Set())
+    setSelectedKind('')
+    setSelectedStatus('')
+    setSelectedDomain('')
+    setSelectedComplianceTag('')
     setSelectedClassifs(new Set())
     setSelectedHosting(new Set())
     setPiiFilter('all')
     setSearchText('')
+    setPage(1)
   }
 
   const hasFilters =
-    selectedKinds.size + selectedStatuses.size + selectedCountries.size +
-    selectedOpcos.size + selectedFunctions.size + selectedSectors.size +
-    selectedOfferings.size + selectedClassifs.size + selectedHosting.size > 0 ||
+    !!selectedKind || !!selectedStatus || !!selectedDomain || !!selectedComplianceTag ||
+    selectedClassifs.size > 0 || selectedHosting.size > 0 ||
     piiFilter !== 'all' || searchText.trim() !== ''
 
-  // ── Counts for filter labels (always unfiltered totals) ──────────────────
-  const kindCounts       = useMemo(() => Object.fromEntries(ALL_KINDS.map(k            => [k, MOCK_CATALOG_ASSETS.filter(a => a.kind === k).length])),             [])
-  const statusCounts     = useMemo(() => Object.fromEntries(ALL_PUBLICATION_STATUSES.map(s => [s, MOCK_CATALOG_ASSETS.filter(a => a.publicationStatus === s).length])), [])
-  const countryCounts    = useMemo(() => Object.fromEntries(ALL_COUNTRIES.map(c           => [c, MOCK_CATALOG_ASSETS.filter(a => a.country.includes(c)).length])),      [])
-  const opcoCounts       = useMemo(() => Object.fromEntries(ALL_OPCOS.map(o               => [o, MOCK_CATALOG_ASSETS.filter(a => a.opco.includes(o)).length])),          [])
-  const functionCounts   = useMemo(() => Object.fromEntries(ALL_FUNCTION_GROUPS.map(f      => [f, MOCK_CATALOG_ASSETS.filter(a => a.functionGroup === f).length])),       [])
-  const sectorCounts     = useMemo(() => Object.fromEntries(ALL_INDUSTRY_SECTORS.map(s     => [s, MOCK_CATALOG_ASSETS.filter(a => a.industrySector === s).length])),     [])
-  const offeringCounts   = useMemo(() => Object.fromEntries(ALL_SERVICE_OFFERINGS.map(o    => [o, MOCK_CATALOG_ASSETS.filter(a => a.serviceOffering === o).length])),    [])
-  const classifCounts    = useMemo(() => Object.fromEntries(ALL_DATA_CLASSIFICATIONS.map(c => [c, MOCK_CATALOG_ASSETS.filter(a => a.nfrs.dataClassification === c).length])), [])
-  const hostingCounts    = useMemo(() => Object.fromEntries(ALL_HOSTING_TYPES.map(h        => [h, MOCK_CATALOG_ASSETS.filter(a => a.nfrs.hostingType === h).length])),   [])
+  function handleKindChange(kind: string) {
+    setSelectedKind(kind)
+    setPage(1)
+  }
+  function handleStatusChange(status: BackendPublicationStatus | '') {
+    setSelectedStatus(status)
+    setPage(1)
+  }
+  function handleDomainChange(domain: string) {
+    setSelectedDomain(domain)
+    setPage(1)
+  }
+  function handleComplianceTagChange(tag: string) {
+    setSelectedComplianceTag(tag)
+    setPage(1)
+  }
+  function handleSortChange(s: SortKey) {
+    setSort(s)
+    setPage(1)
+  }
 
-  // ── Filter + sort ─────────────────────────────────────────────────────────
-  const results = useMemo(() => {
-    let list = MOCK_CATALOG_ASSETS
-
-    const q = searchText.trim().toLowerCase()
-    if (q) list = list.filter(a =>
-      a.name.toLowerCase().includes(q) ||
-      a.owner.toLowerCase().includes(q) ||
-      a.shortSummary.toLowerCase().includes(q) ||
-      a.tags.some(t => t.includes(q))
-    )
-
-    if (selectedKinds.size > 0)      list = list.filter(a => selectedKinds.has(a.kind))
-    if (selectedStatuses.size > 0)   list = list.filter(a => selectedStatuses.has(a.publicationStatus))
-    if (selectedCountries.size > 0)  list = list.filter(a => a.country.some(c => selectedCountries.has(c)))
-    if (selectedOpcos.size > 0)      list = list.filter(a => a.opco.some(o => selectedOpcos.has(o)))
-    if (selectedFunctions.size > 0)  list = list.filter(a => selectedFunctions.has(a.functionGroup))
-    if (selectedSectors.size > 0)    list = list.filter(a => selectedSectors.has(a.industrySector))
-    if (selectedOfferings.size > 0)  list = list.filter(a => selectedOfferings.has(a.serviceOffering))
-    if (selectedClassifs.size > 0)   list = list.filter(a => selectedClassifs.has(a.nfrs.dataClassification))
-    if (selectedHosting.size > 0)    list = list.filter(a => selectedHosting.has(a.nfrs.hostingType))
-    if (piiFilter === 'yes')         list = list.filter(a => a.nfrs.containsPII)
-    if (piiFilter === 'no')          list = list.filter(a => !a.nfrs.containsPII)
-
-    return [...list].sort((a, b) => {
-      if (sortBy === 'name')      return a.name.localeCompare(b.name)
-      if (sortBy === 'usage')     return b.usageCount - a.usageCount
-      if (sortBy === 'published') {
-        const ap = a.publishedAt ?? '0000-00-00'
-        const bp = b.publishedAt ?? '0000-00-00'
-        return bp.localeCompare(ap)
-      }
-      return b.updatedAt.localeCompare(a.updatedAt)
-    })
-  }, [
-    searchText, selectedKinds, selectedStatuses, selectedCountries, selectedOpcos,
-    selectedFunctions, selectedSectors, selectedOfferings, selectedClassifs, selectedHosting,
-    piiFilter, sortBy,
-  ])
+  const statusLabel         = PUBLICATION_STATUSES.find((s) => s.value === selectedStatus)?.label ?? selectedStatus
+  const domainLabel         = domainTerms.find((t) => t.code === selectedDomain)?.label ?? selectedDomain
+  const complianceTagLabel  = complianceTagTerms.find((t) => t.code === selectedComplianceTag)?.label ?? selectedComplianceTag
 
   return (
     <div className="px-8 py-10">
@@ -333,39 +412,47 @@ export default function CatalogDiscoveryPage() {
           id="discovery-heading"
           eyebrow="Catalog"
           title="Asset Discovery"
-          subtitle={`${results.length} of ${MOCK_CATALOG_ASSETS.length} assets`}
+          subtitle={
+            loading
+              ? 'Loading…'
+              : `${results.length}${results.length < totalItems ? ` of ${totalItems}` : ''} asset${totalItems !== 1 ? 's' : ''}`
+          }
           action={
             <div className="flex items-center gap-2">
               <label htmlFor="sort-select" className="text-[12px] text-ink-faint">Sort:</label>
               <select
                 id="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as CatalogSortKey)}
+                value={sort}
+                onChange={(e) => handleSortChange(e.target.value as SortKey)}
                 className="text-[12px] border border-border rounded-md px-2 py-1 bg-surface text-ink focus:outline-none focus:ring-1 focus:ring-primary-400 cursor-pointer"
               >
-                <option value="updated">Recently Updated</option>
-                <option value="published">Recently Published</option>
+                <option value="updated_at">Recently Updated</option>
+                <option value="published_at">Recently Published</option>
                 <option value="name">Name (A–Z)</option>
-                <option value="usage">Most Used</option>
               </select>
             </div>
           }
         />
 
+        {/* ── Error banner ──────────────────────────────────────── */}
+        {error && (
+          <div className="flex items-center gap-2 px-4 py-2.5 mb-4 rounded-md bg-red-50 border border-red-200 text-red-600 text-[12px]">
+            <AlertCircle size={13} strokeWidth={2} />
+            {error}
+          </div>
+        )}
+
         {/* ── Active filter chips ───────────────────────────────── */}
         {hasFilters && (
           <div className="flex flex-wrap items-center gap-1.5 mb-5">
             <span className="text-[11px] text-ink-faint mr-1">Active:</span>
-            {[...selectedKinds].map(k    => <ActiveChip key={k} label={k}    onRemove={() => setSelectedKinds(toggle(selectedKinds, k))} />)}
-            {[...selectedStatuses].map(s => <ActiveChip key={s} label={s}    onRemove={() => setSelectedStatuses(toggle(selectedStatuses, s))} />)}
-            {[...selectedCountries].map(c => <ActiveChip key={c} label={c}   onRemove={() => setSelectedCountries(toggle(selectedCountries, c))} />)}
-            {[...selectedOpcos].map(o    => <ActiveChip key={o} label={o}    onRemove={() => setSelectedOpcos(toggle(selectedOpcos, o))} />)}
-            {[...selectedFunctions].map(f => <ActiveChip key={f} label={f}   onRemove={() => setSelectedFunctions(toggle(selectedFunctions, f))} />)}
-            {[...selectedSectors].map(s  => <ActiveChip key={s} label={s}    onRemove={() => setSelectedSectors(toggle(selectedSectors, s))} />)}
-            {[...selectedOfferings].map(o => <ActiveChip key={o} label={o}   onRemove={() => setSelectedOfferings(toggle(selectedOfferings, o))} />)}
-            {[...selectedClassifs].map(c => <ActiveChip key={c} label={c}    onRemove={() => setSelectedClassifs(toggle(selectedClassifs, c))} />)}
-            {[...selectedHosting].map(h  => <ActiveChip key={h} label={h}    onRemove={() => setSelectedHosting(toggle(selectedHosting, h))} />)}
-            {piiFilter !== 'all' && <ActiveChip label={`PII: ${piiFilter}`}  onRemove={() => setPiiFilter('all')} />}
+            {selectedKind          && <ActiveChip label={kindTerms.find((t) => t.code === selectedKind)?.label ?? selectedKind} onRemove={() => handleKindChange('')} />}
+            {selectedStatus        && <ActiveChip label={statusLabel}        onRemove={() => handleStatusChange('')} />}
+            {selectedDomain        && <ActiveChip label={domainLabel}        onRemove={() => handleDomainChange('')} />}
+            {selectedComplianceTag && <ActiveChip label={complianceTagLabel} onRemove={() => handleComplianceTagChange('')} />}
+            {[...selectedClassifs].map((c) => <ActiveChip key={c} label={c} onRemove={() => setSelectedClassifs(toggle(selectedClassifs, c))} />)}
+            {[...selectedHosting].map((h)  => <ActiveChip key={h} label={h} onRemove={() => setSelectedHosting(toggle(selectedHosting, h))} />)}
+            {piiFilter !== 'all' && <ActiveChip label={`PII: ${piiFilter}`} onRemove={() => setPiiFilter('all')} />}
             <button
               type="button"
               onClick={clearAll}
@@ -385,7 +472,6 @@ export default function CatalogDiscoveryPage() {
             aria-label="Filter assets"
           >
             <div className="bg-surface border border-border rounded-lg p-4">
-              {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <SlidersHorizontal size={12} className="text-ink-faint" strokeWidth={2} />
@@ -402,7 +488,7 @@ export default function CatalogDiscoveryPage() {
                 )}
               </div>
 
-              {/* Search */}
+              {/* Keyword search */}
               <div className="relative mb-4">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" strokeWidth={2} />
                 <input
@@ -415,78 +501,84 @@ export default function CatalogDiscoveryPage() {
                 />
               </div>
 
-              {/* Asset Type */}
-              <FilterGroup title="Asset Type" defaultOpen activeCount={selectedKinds.size}>
-                {ALL_KINDS.map(k => (
-                  <FilterCheckbox key={k} label={k} checked={selectedKinds.has(k)} count={kindCounts[k] ?? 0}
-                    onChange={() => setSelectedKinds(toggle(selectedKinds, k))} />
+              {/* Asset Type — server-side, radio, driven by taxonomy */}
+              <FilterGroup title="Asset Type" defaultOpen activeCount={selectedKind ? 1 : 0}>
+                {kindTerms.map((t) => (
+                  <FilterRadio
+                    key={t.code}
+                    name="asset-kind"
+                    label={t.label}
+                    checked={selectedKind === t.code}
+                    onChange={() => handleKindChange(selectedKind === t.code ? '' : t.code)}
+                  />
                 ))}
               </FilterGroup>
 
-              {/* Publication Status */}
-              <FilterGroup title="Status" defaultOpen activeCount={selectedStatuses.size}>
-                {ALL_PUBLICATION_STATUSES.map(s => (
-                  <FilterCheckbox key={s} label={s.charAt(0).toUpperCase() + s.slice(1).replace('-', ' ')}
-                    checked={selectedStatuses.has(s)} count={statusCounts[s] ?? 0}
-                    onChange={() => setSelectedStatuses(toggle(selectedStatuses, s))} />
+              {/* Status — server-side, radio */}
+              <FilterGroup title="Status" defaultOpen activeCount={selectedStatus ? 1 : 0}>
+                {PUBLICATION_STATUSES.map(({ value, label }) => (
+                  <FilterRadio
+                    key={value}
+                    name="pub-status"
+                    label={label}
+                    checked={selectedStatus === value}
+                    onChange={() => handleStatusChange(selectedStatus === value ? '' : value)}
+                  />
                 ))}
               </FilterGroup>
 
-              {/* Geography */}
-              <FilterGroup title="Country" defaultOpen={false} activeCount={selectedCountries.size}>
-                {ALL_COUNTRIES.map(c => (
-                  <FilterCheckbox key={c} label={c} checked={selectedCountries.has(c)} count={countryCounts[c] ?? 0}
-                    onChange={() => setSelectedCountries(toggle(selectedCountries, c))} />
-                ))}
-              </FilterGroup>
+              {/* Domain — server-side, radio, driven by taxonomy */}
+              {domainTerms.length > 0 && (
+                <FilterGroup title="Domain" defaultOpen={false} activeCount={selectedDomain ? 1 : 0}>
+                  {domainTerms.map((t) => (
+                    <FilterRadio
+                      key={t.code}
+                      name="domain"
+                      label={t.label}
+                      checked={selectedDomain === t.code}
+                      onChange={() => handleDomainChange(selectedDomain === t.code ? '' : t.code)}
+                    />
+                  ))}
+                </FilterGroup>
+              )}
 
-              <FilterGroup title="OpCo" defaultOpen={false} activeCount={selectedOpcos.size}>
-                {ALL_OPCOS.map(o => (
-                  <FilterCheckbox key={o} label={o.replace('OpCo ', '')} checked={selectedOpcos.has(o)} count={opcoCounts[o] ?? 0}
-                    onChange={() => setSelectedOpcos(toggle(selectedOpcos, o))} />
-                ))}
-              </FilterGroup>
+              {/* Compliance Tag — server-side, radio, driven by taxonomy */}
+              {complianceTagTerms.length > 0 && (
+                <FilterGroup title="Compliance Tag" defaultOpen={false} activeCount={selectedComplianceTag ? 1 : 0}>
+                  {complianceTagTerms.map((t) => (
+                    <FilterRadio
+                      key={t.code}
+                      name="compliance-tag"
+                      label={t.label}
+                      checked={selectedComplianceTag === t.code}
+                      onChange={() => handleComplianceTagChange(selectedComplianceTag === t.code ? '' : t.code)}
+                    />
+                  ))}
+                </FilterGroup>
+              )}
 
-              {/* Classification */}
-              <FilterGroup title="Function Group" defaultOpen={false} activeCount={selectedFunctions.size}>
-                {ALL_FUNCTION_GROUPS.map(f => (
-                  <FilterCheckbox key={f} label={f} checked={selectedFunctions.has(f)} count={functionCounts[f] ?? 0}
-                    onChange={() => setSelectedFunctions(toggle(selectedFunctions, f))} />
-                ))}
-              </FilterGroup>
-
-              <FilterGroup title="Industry Sector" defaultOpen={false} activeCount={selectedSectors.size}>
-                {ALL_INDUSTRY_SECTORS.map(s => (
-                  <FilterCheckbox key={s} label={s} checked={selectedSectors.has(s)} count={sectorCounts[s] ?? 0}
-                    onChange={() => setSelectedSectors(toggle(selectedSectors, s))} />
-                ))}
-              </FilterGroup>
-
-              <FilterGroup title="Service Offering" defaultOpen={false} activeCount={selectedOfferings.size}>
-                {ALL_SERVICE_OFFERINGS.map(o => (
-                  <FilterCheckbox key={o} label={o} checked={selectedOfferings.has(o)} count={offeringCounts[o] ?? 0}
-                    onChange={() => setSelectedOfferings(toggle(selectedOfferings, o))} />
-                ))}
-              </FilterGroup>
-
-              {/* NFRs */}
+              {/* Data Classification — client-side */}
               <FilterGroup title="Data Classification" defaultOpen={false} activeCount={selectedClassifs.size}>
-                {ALL_DATA_CLASSIFICATIONS.map(c => (
-                  <FilterCheckbox key={c} label={c} checked={selectedClassifs.has(c)} count={classifCounts[c] ?? 0}
+                {DATA_CLASSIFICATIONS.map((c) => (
+                  <FilterCheckbox key={c} label={c} checked={selectedClassifs.has(c)}
+                    count={classifCounts[c] ?? 0}
                     onChange={() => setSelectedClassifs(toggle(selectedClassifs, c))} />
                 ))}
               </FilterGroup>
 
+              {/* Hosting Type — client-side */}
               <FilterGroup title="Hosting Type" defaultOpen={false} activeCount={selectedHosting.size}>
-                {ALL_HOSTING_TYPES.map(h => (
-                  <FilterCheckbox key={h} label={h} checked={selectedHosting.has(h)} count={hostingCounts[h] ?? 0}
+                {HOSTING_TYPES.map((h) => (
+                  <FilterCheckbox key={h} label={h} checked={selectedHosting.has(h)}
+                    count={hostingCounts[h] ?? 0}
                     onChange={() => setSelectedHosting(toggle(selectedHosting, h))} />
                 ))}
               </FilterGroup>
 
+              {/* PII — client-side */}
               <FilterGroup title="Contains PII" defaultOpen={false} activeCount={piiFilter !== 'all' ? 1 : 0}>
                 <div className="flex gap-1">
-                  {(['all', 'yes', 'no'] as const).map(v => (
+                  {(['all', 'yes', 'no'] as const).map((v) => (
                     <PiiRadio key={v} value={v} current={piiFilter} onChange={setPiiFilter} />
                   ))}
                 </div>
@@ -496,7 +588,11 @@ export default function CatalogDiscoveryPage() {
 
           {/* ── Result grid ─────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            {results.length === 0 ? (
+            {loading ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            ) : results.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-lg">
                 <LayoutGrid size={32} className="text-ink-faint mb-3" strokeWidth={1} />
                 <p className="text-[14px] font-medium text-ink-muted mb-1">
@@ -514,11 +610,42 @@ export default function CatalogDiscoveryPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                {results.map((asset) => (
-                  <ResultCard key={asset.id} asset={asset} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {results.map((asset) => (
+                    <ResultCard key={asset.id} asset={asset} />
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-border-muted">
+                    <p className="text-[12px] text-ink-faint">
+                      Page {page} of {totalPages} · {totalItems} total
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page <= 1}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:border-primary-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronLeft size={12} strokeWidth={2} />
+                        Prev
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page >= totalPages}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:border-primary-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                        <ChevronRight size={12} strokeWidth={2} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

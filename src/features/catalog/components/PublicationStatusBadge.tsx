@@ -1,5 +1,4 @@
 import clsx from 'clsx'
-import type { PublicationStatus } from '../types'
 
 interface Config {
   label:     string
@@ -8,7 +7,35 @@ interface Config {
   text:      string
 }
 
-const STATUS_CONFIG: Record<PublicationStatus, Config> = {
+// Covers backend values (ga, preview, deprecated, retired) and legacy
+// frontend mock values so existing code continues to compile.
+const STATUS_CONFIG: Record<string, Config> = {
+  // ── Backend values ──────────────────────────────────────────────────────
+  ga: {
+    label:     'GA',
+    dot:       'bg-success',
+    container: 'bg-success-bg border-success/20',
+    text:      'text-success',
+  },
+  preview: {
+    label:     'Preview',
+    dot:       'bg-info',
+    container: 'bg-info-bg border-info/20',
+    text:      'text-info',
+  },
+  deprecated: {
+    label:     'Deprecated',
+    dot:       'bg-ink-faint',
+    container: 'bg-surface-subtle border-border',
+    text:      'text-ink-muted',
+  },
+  retired: {
+    label:     'Retired',
+    dot:       'bg-ink-faint',
+    container: 'bg-surface-subtle border-border',
+    text:      'text-ink-faint',
+  },
+  // ── Legacy frontend-only mock values ────────────────────────────────────
   draft: {
     label:     'Draft',
     dot:       'bg-ink-faint',
@@ -33,12 +60,6 @@ const STATUS_CONFIG: Record<PublicationStatus, Config> = {
     container: 'bg-success-bg border-success/20',
     text:      'text-success',
   },
-  deprecated: {
-    label:     'Deprecated',
-    dot:       'bg-ink-faint',
-    container: 'bg-surface-subtle border-border',
-    text:      'text-ink-muted',
-  },
   archived: {
     label:     'Archived',
     dot:       'bg-ink-faint',
@@ -47,8 +68,15 @@ const STATUS_CONFIG: Record<PublicationStatus, Config> = {
   },
 }
 
+const FALLBACK: Config = {
+  label:     '—',
+  dot:       'bg-ink-faint',
+  container: 'bg-surface-subtle border-border',
+  text:      'text-ink-faint',
+}
+
 interface PublicationStatusBadgeProps {
-  status: PublicationStatus
+  status: string
   size?:  'sm' | 'md'
 }
 
@@ -56,7 +84,7 @@ export default function PublicationStatusBadge({
   status,
   size = 'md',
 }: PublicationStatusBadgeProps) {
-  const cfg = STATUS_CONFIG[status]
+  const cfg = STATUS_CONFIG[status] ?? FALLBACK
 
   return (
     <span
