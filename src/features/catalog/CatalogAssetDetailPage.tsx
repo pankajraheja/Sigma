@@ -21,13 +21,21 @@ import {
   BookOpen,
   Wrench,
   AlertCircle,
+  Sparkles,
+  Lightbulb,
+  Wand2,
+  AlertTriangle,
 } from 'lucide-react'
 import { Panel, PanelRow } from '../../components/ui/Panel'
 import AssetKindBadge from './components/AssetKindBadge'
 import PublicationStatusBadge from './components/PublicationStatusBadge'
 import { useCatalogAssetDetail } from './hooks/useCatalogAssetDetail'
 import { useAssetTaxonomy } from './hooks/useAssetTaxonomy'
-import type { BackendAssetVersion, BackendSourceRef } from './api/types'
+import { useSimilarAssets } from './hooks/useSimilarAssets'
+import { useAssetSummary } from './hooks/useAssetSummary'
+import { useAssetRecommendations } from './hooks/useAssetRecommendations'
+import { useAssetEnrichmentSuggestions } from './hooks/useAssetEnrichmentSuggestions'
+import type { BackendAssetVersion, BackendSourceRef, BackendSimilarAsset, ApiAssetRecommendation } from './api/types'
 
 // ── Source-ref → icon / kind map ──────────────────────────────────────────────
 
@@ -86,20 +94,74 @@ function VersionRow({ ver }: { ver: BackendAssetVersion }) {
   return (
     <PanelRow>
       <span className="text-[11px] font-mono font-semibold text-ink w-20 shrink-0">
-        v{ver.version_tag}
+        v{ver.version}
         {ver.is_current && (
           <span className="ml-1.5 text-[9px] font-semibold text-success border border-success/30 bg-success-bg rounded px-1 py-0.5 align-middle">
             current
           </span>
         )}
       </span>
-      <span className="text-ink flex-1 text-[12px]">{ver.changelog ?? '—'}</span>
+      <span className="text-ink flex-1 text-[12px]">{ver.change_summary ?? '—'}</span>
       <div className="text-right shrink-0">
         <p className="text-[11px] text-ink-faint">{fmtShort(ver.released_at)}</p>
         {ver.released_by && (
           <p className="text-[10px] text-ink-faint">{ver.released_by}</p>
         )}
       </div>
+    </PanelRow>
+  )
+}
+
+function SimilarAssetRow({ asset: a }: { asset: BackendSimilarAsset }) {
+  return (
+    <PanelRow>
+      <AssetKindBadge kind={a.asset_kind} size="sm" />
+      <Link
+        to={`/catalog/assets/${a.id}`}
+        className="flex-1 text-[12px] text-primary-600 hover:text-primary-700 truncate transition-colors"
+        title={a.name}
+      >
+        {a.name}
+      </Link>
+      {a.domain && (
+        <span className="text-[11px] text-ink-faint shrink-0 hidden sm:block">
+          {a.domain}
+        </span>
+      )}
+      <PublicationStatusBadge status={a.publication_status} size="sm" />
+    </PanelRow>
+  )
+}
+
+function AiGeneratedBadge({ provider, model }: { provider: string; model: string }) {
+  return (
+    <div className="flex items-center gap-1.5 px-4 pt-3 pb-0">
+      <Sparkles size={10} className="text-ribbon shrink-0" aria-hidden="true" />
+      <span className="text-[10px] text-ink-faint">
+        AI-generated · {provider === 'openai' ? model : 'preview mode'} · not authoritative
+      </span>
+    </div>
+  )
+}
+
+function RecommendedAssetRow({ rec }: { rec: ApiAssetRecommendation }) {
+  const a = rec.asset
+  return (
+    <PanelRow>
+      <AssetKindBadge kind={a.asset_kind} size="sm" />
+      <div className="flex-1 min-w-0">
+        <Link
+          to={`/catalog/assets/${a.id}`}
+          className="block text-[12px] text-primary-600 hover:text-primary-700 truncate transition-colors"
+          title={a.name}
+        >
+          {a.name}
+        </Link>
+        {rec.reason && (
+          <span className="block text-[11px] text-ink-faint italic truncate">{rec.reason}</span>
+        )}
+      </div>
+      <PublicationStatusBadge status={a.publication_status} size="sm" />
     </PanelRow>
   )
 }
@@ -142,6 +204,10 @@ export default function CatalogAssetDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { detail, versions, loading, error, notFound } = useCatalogAssetDetail(id)
   const { classifications, tags: assetTags } = useAssetTaxonomy(detail?.asset.id)
+  const { assets: similarAssets, loading: similarLoading } = useSimilarAssets(detail?.asset.id)
+  const { summary, loading: summaryLoading } = useAssetSummary(detail?.asset.id)
+  const { recommendations, provider: recProvider, loading: recLoading } = useAssetRecommendations(detail?.asset.id)
+  const { suggestions, loading: enrichLoading } = useAssetEnrichmentSuggestions(detail?.asset.id)
 
   if (loading) return <LoadingSkeleton />
 
@@ -197,7 +263,7 @@ export default function CatalogAssetDetailPage() {
 
         {/* ── Breadcrumb ──────────────────────────────────────────── */}
         <nav className="flex items-center gap-2 text-[12px] text-ink-faint mb-5" aria-label="Breadcrumb">
-          <Link to="/catalog"           className="hover:text-primary-600 transition-colors">Catalog</Link>
+          <Link to="/catalog"           className="hover:text-primary-600 transition-colors">AI Navigator</Link>
           <span aria-hidden="true">/</span>
           <Link to="/catalog/discovery" className="hover:text-primary-600 transition-colors">Discovery</Link>
           <span aria-hidden="true">/</span>
@@ -287,6 +353,52 @@ export default function CatalogAssetDetailPage() {
                 </div>
               </Panel>
             )}
+
+            {/* AI Summary */}
+            <Panel title="AI Summary" Icon={Sparkles} meta={summaryLoading ? '…' : summary ? summary.provider : undefined}>
+              {summaryLoading ? (
+                <div className="px-4 py-3 space-y-2 animate-pulse">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="h-3 bg-surface-subtle rounded" style={{ width: `${85 - i * 10}%` }} />
+                  ))}
+                </div>
+              ) : summary ? (
+                <div>
+                  <AiGeneratedBadge provider={summary.provider} model={summary.model} />
+                  <div className="px-4 py-3 space-y-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint mb-1">Business</p>
+                      <p className="text-[13px] text-ink leading-relaxed">{summary.businessSummary}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint mb-1">Technical</p>
+                      <p className="text-[13px] text-ink leading-relaxed">{summary.technicalSummary}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint mb-1">Reuse Guidance</p>
+                      <p className="text-[13px] text-ink leading-relaxed">{summary.reuseGuidance}</p>
+                    </div>
+                    {summary.keyRisks.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint mb-1">Key Risks</p>
+                        <ul className="space-y-1">
+                          {summary.keyRisks.map((risk, i) => (
+                            <li key={i} className="flex items-start gap-1.5 text-[12px] text-warning">
+                              <AlertTriangle size={11} strokeWidth={2} className="shrink-0 mt-0.5" />
+                              {risk}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="px-4 py-3 text-[12px] text-ink-faint italic">
+                  Summary not available.
+                </div>
+              )}
+            </Panel>
 
             {/* Taxonomy & Classification */}
             <Panel title="Taxonomy & Classification" Icon={Globe} meta="Governance metadata">
@@ -458,7 +570,7 @@ export default function CatalogAssetDetailPage() {
             <Panel
               title="Version History"
               Icon={History}
-              meta={currentVersion ? `v${currentVersion.version_tag} current` : 'no versions'}
+              meta={currentVersion ? `v${currentVersion.version} current` : 'no versions'}
             >
               {versions.length === 0 ? (
                 <div className="px-4 py-3 text-[12px] text-ink-faint italic">
@@ -466,6 +578,122 @@ export default function CatalogAssetDetailPage() {
                 </div>
               ) : (
                 versions.map((ver) => <VersionRow key={ver.id} ver={ver} />)
+              )}
+            </Panel>
+
+            {/* Similar Assets — heuristic similarity (Phase 1) */}
+            <Panel
+              title="Similar Assets"
+              Icon={Sparkles}
+              meta={similarLoading ? '…' : `${similarAssets.length}`}
+            >
+              {similarLoading ? (
+                <div className="px-4 py-3 space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-8 bg-surface-subtle rounded animate-pulse" />
+                  ))}
+                </div>
+              ) : similarAssets.length === 0 ? (
+                <div className="px-4 py-3 text-[12px] text-ink-faint italic">
+                  No similar assets found.
+                </div>
+              ) : (
+                similarAssets.map((a) => <SimilarAssetRow key={a.id} asset={a} />)
+              )}
+            </Panel>
+
+            {/* Recommended Assets — AI-explained reasons */}
+            <Panel
+              title="Recommended Assets"
+              Icon={Lightbulb}
+              meta={recLoading ? '…' : `${recommendations.length}`}
+            >
+              {recLoading ? (
+                <div className="px-4 py-3 space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-8 bg-surface-subtle rounded animate-pulse" />
+                  ))}
+                </div>
+              ) : recommendations.length === 0 ? (
+                <div className="px-4 py-3 text-[12px] text-ink-faint italic">
+                  No recommendations found.
+                </div>
+              ) : (
+                <>
+                  <AiGeneratedBadge provider={recProvider ?? 'stub'} model="stub-v1" />
+                  {recommendations.map((rec) => (
+                    <RecommendedAssetRow key={rec.asset.id} rec={rec} />
+                  ))}
+                </>
+              )}
+            </Panel>
+
+            {/* Enrichment Suggestions — AI metadata quality hints */}
+            <Panel title="Enrichment Suggestions" Icon={Wand2}>
+              {enrichLoading ? (
+                <div className="px-4 py-3 space-y-2 animate-pulse">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-8 bg-surface-subtle rounded" />
+                  ))}
+                </div>
+              ) : !suggestions || (
+                suggestions.suggestedTags.length === 0 &&
+                suggestions.suggestedClassifications.length === 0 &&
+                suggestions.nfrClarifications.length === 0
+              ) ? (
+                <div className="px-4 py-3 text-[12px] text-ink-faint italic">
+                  No enrichment suggestions at this time.
+                </div>
+              ) : (
+                <div>
+                  <AiGeneratedBadge provider={suggestions.provider} model="stub-v1" />
+                  <div className="px-4 py-3 space-y-4">
+                    {suggestions.suggestedTags.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint mb-2">Suggested Tags</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {suggestions.suggestedTags.map((s, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-subtle border border-border text-[11px] text-ink-muted">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.confidence === 'high' ? 'bg-success' : s.confidence === 'medium' ? 'bg-warning' : 'bg-border-strong'}`} />
+                              #{s.value}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {suggestions.suggestedClassifications.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint mb-2">Classifications</p>
+                        <div className="space-y-1.5">
+                          {suggestions.suggestedClassifications.map((s, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[12px]">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.confidence === 'high' ? 'bg-success' : s.confidence === 'medium' ? 'bg-warning' : 'bg-border-strong'}`} />
+                              <span className="text-ink-faint capitalize">{s.value.scheme_code.replace(/_/g, ' ')}</span>
+                              <span className="text-ink font-medium">{s.value.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {suggestions.nfrClarifications.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint mb-2">NFR Clarifications</p>
+                        <div className="space-y-1.5">
+                          {suggestions.nfrClarifications.map((s, i) => (
+                            <div key={i} className="flex items-start gap-2 text-[12px]">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1 bg-warning" />
+                              <div>
+                                <span className="text-ink-faint capitalize">{s.value.field.replace(/_/g, ' ')}</span>
+                                <span className="text-ink-faint mx-1">→</span>
+                                <span className="text-ink font-medium">{s.value.suggestedValue}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </Panel>
 
@@ -492,7 +720,7 @@ export default function CatalogAssetDetailPage() {
               {currentVersion && (
                 <MetaRow label="Version">
                   <span className="text-[12px] font-mono font-semibold text-ink">
-                    v{currentVersion.version_tag}
+                    v{currentVersion.version}
                   </span>
                 </MetaRow>
               )}

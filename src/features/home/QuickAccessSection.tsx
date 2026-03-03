@@ -14,6 +14,16 @@ const CATEGORY_ACCENT: Partial<Record<ModuleCategory, string>> = {
   Govern:      'border-l-success',
 }
 
+// ── Category display labels — user-facing group names ─────────────────────────
+
+const CATEGORY_DISPLAY: Partial<Record<ModuleCategory, string>> = {
+  Discovery:   'Discover',
+  Intake:      'Request',
+  Build:       'Create & Build',
+  Orchestrate: 'Orchestrate & Deliver',
+  Govern:      'Govern',
+}
+
 // ── Derived data (module load time — no re-render needed) ─────────────────────
 
 const categoryGroups  = getLauncherModulesByCategory()
@@ -23,17 +33,18 @@ const totalLauncher   = categoryGroups.reduce((n, g) => n + g.modules.length, 0)
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function CategoryHeader({ category }: { category: ModuleCategory }) {
-  const accentClass = CATEGORY_ACCENT[category] ?? 'border-l-border-strong'
+  const accentClass  = CATEGORY_ACCENT[category] ?? 'border-l-border-strong'
+  const displayLabel = CATEGORY_DISPLAY[category] ?? category
   return (
     <div className={`pl-3 border-l-2 ${accentClass} mb-4`}>
       <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-ink-faint">
-        {category}
+        {displayLabel}
       </span>
     </div>
   )
 }
 
-/** Compact featured strip — icon + name + one-liner, no card chrome. */
+/** Quick-launch strip — icon + name + one-liner for featured modules. */
 function FeaturedStrip() {
   if (featuredModules.length === 0) return null
 
@@ -42,7 +53,7 @@ function FeaturedStrip() {
       <div className="flex items-center gap-3 mb-5" aria-hidden="true">
         <div className="h-px w-6 bg-ribbon" />
         <span className="text-[11px] font-semibold tracking-[0.16em] uppercase text-ink-faint">
-          Featured
+          Quick Launch
         </span>
       </div>
 
@@ -85,15 +96,15 @@ export default function QuickAccessSection() {
     >
       <SectionHeader
         id="quick-access-heading"
-        eyebrow="Platform"
-        title="Platform Modules"
-        subtitle={`${totalLauncher} modules · governed by shared taxonomy and access control`}
+        eyebrow="Workspace"
+        title="All Modules"
+        subtitle={`${totalLauncher} modules · unified governance · one enterprise platform`}
       />
 
-      {/* Featured quick-launch strip */}
+      {/* Quick-launch strip for featured modules */}
       <FeaturedStrip />
 
-      {/* Full module catalog — all launcher modules grouped by category */}
+      {/* Full module grid — grouped by capability area */}
       <div className="max-w-6xl mx-auto space-y-10">
         {categoryGroups.map(({ category, modules }) => (
           <div key={category}>

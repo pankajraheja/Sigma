@@ -1,0 +1,914 @@
+-- =============================================================================
+-- db/seed.txt
+-- SigAI Platform — AI Navigator (Catalog) dev seed
+--
+-- Inserts 8 diverse catalog assets across different kinds, domains, org scopes,
+-- and compliance tags. Designed to give the similar-assets heuristic meaningful
+-- data to compare against.
+--
+-- PREREQUISITES:
+--   All db/sql/ migrations applied (001 through 021).
+--   db/test/seed_smoke_test.sql applied (smoke-test asset must exist).
+--
+-- IDEMPOTENT: cleanup block runs first and removes any previous dev seed records.
+--
+-- FIXED CONSTANTS:
+--   Dev source entity UUIDs: d1d10001-0000-4000-8000-00000000000[1-8]
+--   Placeholder user UUID:   00000000-0000-0000-0000-000000000099
+--   Org codes:               DEV_ prefix on all org records
+--
+-- EXECUTION:
+--   psql -d sigai -f db/seed.txt
+-- =============================================================================
+
+
+-- =============================================================================
+-- CLEANUP — remove previous dev seed records (safe to re-run)
+-- =============================================================================
+
+DO $$
+BEGIN
+    -- catalog.assets CASCADE removes: asset_versions, asset_classifications,
+    --   asset_tags, asset_source_refs
+    DELETE FROM catalog.assets
+    WHERE source_entity_id IN (
+        'd1d10001-0000-4000-8000-000000000001'::uuid,
+        'd1d10001-0000-4000-8000-000000000002'::uuid,
+        'd1d10001-0000-4000-8000-000000000003'::uuid,
+        'd1d10001-0000-4000-8000-000000000004'::uuid,
+        'd1d10001-0000-4000-8000-000000000005'::uuid,
+        'd1d10001-0000-4000-8000-000000000006'::uuid,
+        'd1d10001-0000-4000-8000-000000000007'::uuid,
+        'd1d10001-0000-4000-8000-000000000008'::uuid
+    );
+
+    -- Remove DEV_ org reference records
+    DELETE FROM org.service_offerings WHERE code IN (
+        'DEV_FRAUD_RISK', 'DEV_CUSTOMER_INTEL', 'DEV_DATA_INFRA', 'DEV_PAYMENTS_SVC'
+    );
+    DELETE FROM org.industry_sectors WHERE code IN (
+        'DEV_BANKING', 'DEV_INSURANCE', 'DEV_CAPITAL_MARKETS'
+    );
+    DELETE FROM org.function_groups WHERE code IN (
+        'DEV_RISK_MGMT', 'DEV_CUSTOMER_ANALYTICS', 'DEV_DATA_PLATFORM', 'DEV_PAYMENTS'
+    );
+    DELETE FROM org.opcos WHERE code IN (
+        'DEV_UK_BANKING', 'DEV_EU_RETAIL', 'DEV_GLOBAL_DATA'
+    );
+    -- Note: countries (GB, DE) are real ISO codes — only delete if we inserted them.
+    -- We use ON CONFLICT DO NOTHING below, so they only exist here if this seed
+    -- created them. Remove them to keep the DB clean on repeated runs.
+    DELETE FROM org.countries WHERE iso_alpha2 IN ('GB', 'DE')
+        AND name IN ('United Kingdom', 'Germany');
+
+    RAISE NOTICE '[cleanup] Previous dev seed records removed.';
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- =============================================================================
+-- MAIN SEED — single transaction
+-- =============================================================================
+
+BEGIN;
+
+DO $$
+DECLARE
+    -- Fixed constants
+    c_user UUID := '00000000-0000-0000-0000-000000000099';
+
+    -- Fixed source entity UUIDs (one per asset)
+    c_e1 UUID := 'd1d10001-0000-4000-8000-000000000001';
+    c_e2 UUID := 'd1d10001-0000-4000-8000-000000000002';
+    c_e3 UUID := 'd1d10001-0000-4000-8000-000000000003';
+    c_e4 UUID := 'd1d10001-0000-4000-8000-000000000004';
+    c_e5 UUID := 'd1d10001-0000-4000-8000-000000000005';
+    c_e6 UUID := 'd1d10001-0000-4000-8000-000000000006';
+    c_e7 UUID := 'd1d10001-0000-4000-8000-000000000007';
+    c_e8 UUID := 'd1d10001-0000-4000-8000-000000000008';
+
+    -- Module IDs (resolved at runtime)
+    v_forge_module_id UUID;
+
+    -- Org IDs
+    v_country_gb   UUID;
+    v_country_de   UUID;
+    v_opco_uk      UUID;
+    v_opco_eu      UUID;
+    v_opco_global  UUID;
+    v_fg_risk      UUID;
+    v_fg_analytics UUID;
+    v_fg_data      UUID;
+    v_fg_payments  UUID;
+    v_sector_banking  UUID;
+    v_sector_capital  UUID;
+    v_svc_fraud    UUID;
+    v_svc_cust     UUID;
+    v_svc_data     UUID;
+    v_svc_payments UUID;
+
+    -- Asset IDs
+    v_a1 UUID; v_a2 UUID; v_a3 UUID; v_a4 UUID;
+    v_a5 UUID; v_a6 UUID; v_a7 UUID; v_a8 UUID;
+
+    -- Taxonomy term IDs
+    v_term_model     UUID;
+    v_term_api       UUID;
+    v_term_dashboard UUID;
+    v_term_dataset   UUID;
+    v_term_template  UUID;
+    v_term_connector UUID;
+    v_term_risk      UUID;
+    v_term_gdpr      UUID;
+    v_term_fca       UUID;
+    v_term_sox       UUID;
+    v_term_pci       UUID;
+
+    -- Tag IDs
+    v_tag_churn       UUID;
+    v_tag_aml         UUID;
+    v_tag_kyc         UUID;
+    v_tag_credit      UUID;
+    v_tag_payments    UUID;
+    v_tag_segmentation UUID;
+    v_tag_reporting   UUID;
+    v_tag_connector   UUID;
+    v_tag_ml          UUID;
+    v_tag_realtime    UUID;
+    v_tag_screening   UUID;
+    v_tag_dq          UUID;
+
+BEGIN
+
+    -- =========================================================================
+    -- Resolve platform.modules
+    -- =========================================================================
+
+    SELECT id INTO v_forge_module_id FROM platform.modules WHERE module_key = 'forge';
+
+    IF v_forge_module_id IS NULL THEN
+        RAISE EXCEPTION 'forge module not found. Run db/sql/003_org_reference_minimal.sql first.';
+    END IF;
+
+    RAISE NOTICE '[modules] forge = %', v_forge_module_id;
+
+
+    -- =========================================================================
+    -- Org reference data
+    -- =========================================================================
+
+    -- Countries (real ISO codes — insert if absent, reuse if present)
+    INSERT INTO org.countries (iso_alpha2, iso_alpha3, name, region)
+    VALUES ('GB', 'GBR', 'United Kingdom', 'EMEA')
+    ON CONFLICT (iso_alpha2) DO NOTHING;
+    SELECT id INTO v_country_gb FROM org.countries WHERE iso_alpha2 = 'GB';
+
+    INSERT INTO org.countries (iso_alpha2, iso_alpha3, name, region)
+    VALUES ('DE', 'DEU', 'Germany', 'EMEA')
+    ON CONFLICT (iso_alpha2) DO NOTHING;
+    SELECT id INTO v_country_de FROM org.countries WHERE iso_alpha2 = 'DE';
+
+    -- Function groups
+    INSERT INTO org.function_groups (code, name)
+    VALUES ('DEV_RISK_MGMT', 'Risk Management')
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_fg_risk;
+
+    INSERT INTO org.function_groups (code, name)
+    VALUES ('DEV_CUSTOMER_ANALYTICS', 'Customer Analytics')
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_fg_analytics;
+
+    INSERT INTO org.function_groups (code, name)
+    VALUES ('DEV_DATA_PLATFORM', 'Data Platform')
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_fg_data;
+
+    INSERT INTO org.function_groups (code, name)
+    VALUES ('DEV_PAYMENTS', 'Payments')
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_fg_payments;
+
+    -- Industry sectors
+    INSERT INTO org.industry_sectors (code, name)
+    VALUES ('DEV_BANKING', 'Banking')
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_sector_banking;
+
+    INSERT INTO org.industry_sectors (code, name)
+    VALUES ('DEV_CAPITAL_MARKETS', 'Capital Markets')
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_sector_capital;
+
+    -- OpCos
+    INSERT INTO org.opcos (code, name, primary_country_id)
+    VALUES ('DEV_UK_BANKING', 'UK Retail Banking', v_country_gb)
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, primary_country_id = EXCLUDED.primary_country_id
+    RETURNING id INTO v_opco_uk;
+
+    INSERT INTO org.opcos (code, name, primary_country_id)
+    VALUES ('DEV_EU_RETAIL', 'EU Retail Banking', v_country_de)
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, primary_country_id = EXCLUDED.primary_country_id
+    RETURNING id INTO v_opco_eu;
+
+    INSERT INTO org.opcos (code, name)
+    VALUES ('DEV_GLOBAL_DATA', 'Global Data Services')
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_opco_global;
+
+    -- Service offerings
+    INSERT INTO org.service_offerings (code, name, function_group_id, industry_sector_id)
+    VALUES ('DEV_FRAUD_RISK', 'Fraud & Risk Analytics', v_fg_risk, v_sector_banking)
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_svc_fraud;
+
+    INSERT INTO org.service_offerings (code, name, function_group_id, industry_sector_id)
+    VALUES ('DEV_CUSTOMER_INTEL', 'Customer Intelligence', v_fg_analytics, v_sector_banking)
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_svc_cust;
+
+    INSERT INTO org.service_offerings (code, name, function_group_id)
+    VALUES ('DEV_DATA_INFRA', 'Data Infrastructure', v_fg_data)
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_svc_data;
+
+    INSERT INTO org.service_offerings (code, name, function_group_id, industry_sector_id)
+    VALUES ('DEV_PAYMENTS_SVC', 'Payments Processing', v_fg_payments, v_sector_banking)
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_svc_payments;
+
+    RAISE NOTICE '[org] Org reference data ready.';
+
+
+    -- =========================================================================
+    -- Taxonomy terms
+    -- (seeded by 004_metadata_reference_minimal.sql — resolved here)
+    -- =========================================================================
+
+    SELECT id INTO v_term_model     FROM metadata.taxonomy_terms WHERE scheme_code = 'asset_kind'     AND code = 'model';
+    SELECT id INTO v_term_api       FROM metadata.taxonomy_terms WHERE scheme_code = 'asset_kind'     AND code = 'api';
+    SELECT id INTO v_term_dashboard FROM metadata.taxonomy_terms WHERE scheme_code = 'asset_kind'     AND code = 'dashboard';
+    SELECT id INTO v_term_dataset   FROM metadata.taxonomy_terms WHERE scheme_code = 'asset_kind'     AND code = 'dataset';
+    SELECT id INTO v_term_template  FROM metadata.taxonomy_terms WHERE scheme_code = 'asset_kind'     AND code = 'template';
+    SELECT id INTO v_term_connector FROM metadata.taxonomy_terms WHERE scheme_code = 'asset_kind'     AND code = 'connector';
+    SELECT id INTO v_term_risk      FROM metadata.taxonomy_terms WHERE scheme_code = 'domain'         AND code = 'risk_compliance';
+    SELECT id INTO v_term_gdpr      FROM metadata.taxonomy_terms WHERE scheme_code = 'compliance_tag' AND code = 'gdpr';
+    SELECT id INTO v_term_fca       FROM metadata.taxonomy_terms WHERE scheme_code = 'compliance_tag' AND code = 'fca';
+    SELECT id INTO v_term_sox       FROM metadata.taxonomy_terms WHERE scheme_code = 'compliance_tag' AND code = 'sox';
+    SELECT id INTO v_term_pci       FROM metadata.taxonomy_terms WHERE scheme_code = 'compliance_tag' AND code = 'pci_dss';
+
+
+    -- =========================================================================
+    -- Tags
+    -- metadata.tags labels must be lowercase and trimmed (schema constraint)
+    -- =========================================================================
+
+    INSERT INTO metadata.tags (label) VALUES
+        ('churn-prediction'),
+        ('aml'),
+        ('kyc'),
+        ('credit-risk'),
+        ('payments'),
+        ('segmentation'),
+        ('regulatory-reporting'),
+        ('data-connector'),
+        ('machine-learning'),
+        ('real-time'),
+        ('transaction-screening'),
+        ('data-quality')
+    ON CONFLICT (label) DO NOTHING;
+
+    SELECT id INTO v_tag_churn        FROM metadata.tags WHERE label = 'churn-prediction';
+    SELECT id INTO v_tag_aml          FROM metadata.tags WHERE label = 'aml';
+    SELECT id INTO v_tag_kyc          FROM metadata.tags WHERE label = 'kyc';
+    SELECT id INTO v_tag_credit       FROM metadata.tags WHERE label = 'credit-risk';
+    SELECT id INTO v_tag_payments     FROM metadata.tags WHERE label = 'payments';
+    SELECT id INTO v_tag_segmentation FROM metadata.tags WHERE label = 'segmentation';
+    SELECT id INTO v_tag_reporting    FROM metadata.tags WHERE label = 'regulatory-reporting';
+    SELECT id INTO v_tag_connector    FROM metadata.tags WHERE label = 'data-connector';
+    SELECT id INTO v_tag_ml           FROM metadata.tags WHERE label = 'machine-learning';
+    SELECT id INTO v_tag_realtime     FROM metadata.tags WHERE label = 'real-time';
+    SELECT id INTO v_tag_screening    FROM metadata.tags WHERE label = 'transaction-screening';
+    SELECT id INTO v_tag_dq           FROM metadata.tags WHERE label = 'data-quality';
+
+    RAISE NOTICE '[tags] Tags ready.';
+
+
+    -- =========================================================================
+    -- ASSET 1 — Customer Churn Prediction Model
+    -- kind: model | domain: customer_analytics | opco: DEV_UK_BANKING
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        primary_country_id, opco_id, function_group_id, industry_sector_id, service_offering_id,
+        data_classification, hosting_type, audience_type, business_criticality,
+        data_residency, contains_pii, is_client_facing,
+        retention_requirement, sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'Customer Churn Prediction Model',
+        'ML model predicting 30-day churn probability for retail banking customers.',
+        E'## Overview\n'
+        'Predicts the probability of retail banking customer churn within 30 days using '
+        'behavioural signals, product usage patterns, and service interaction history.\n\n'
+        '## Features\n'
+        '87 input features including transaction recency, channel diversity, and '
+        'complaint history. XGBoost ensemble with monthly retraining cycle. AUC-ROC: 0.91.\n\n'
+        '## Usage\n'
+        'Consumed by the Retention Campaigns service to trigger proactive outreach at scale.',
+        'model',
+        'customer_analytics',
+        'ga',
+        c_user,
+        v_forge_module_id, 'model', c_e1,
+        v_country_gb, v_opco_uk, v_fg_analytics, v_sector_banking, v_svc_cust,
+        'confidential', 'cloud', 'internal', 'high',
+        'GB', TRUE, FALSE,
+        '5 years (BCBS 239)',
+        '99.0% uptime, p95 inference < 200ms',
+        ARRAY['gdpr', 'fca'],
+        42, TRUE, NOW() - INTERVAL '30 days'
+    ) RETURNING id INTO v_a1;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a1, 'v1.3.0', c_user, NOW() - INTERVAL '30 days',
+        'Monthly retrain. Feature engineering improvements. AUC-ROC improved from 0.89 to 0.91.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a1, 'forge_asset_id', c_e1::text, 'FORGE Model: Customer Churn v1.3', NULL, TRUE, c_user);
+
+    IF v_term_model IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a1, v_term_model, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_gdpr IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a1, v_term_gdpr, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_fca IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a1, v_term_fca, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a1, v_tag_churn, c_user), (v_a1, v_tag_ml, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[1/8] Customer Churn Prediction Model: %', v_a1;
+
+
+    -- =========================================================================
+    -- ASSET 2 — AML Transaction Screening API
+    -- kind: api | domain: risk_compliance | opco: DEV_UK_BANKING
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        primary_country_id, opco_id, function_group_id, industry_sector_id, service_offering_id,
+        data_classification, hosting_type, audience_type, business_criticality,
+        data_residency, contains_pii, is_client_facing,
+        retention_requirement, sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'AML Transaction Screening API',
+        'Real-time anti-money laundering screening for payment transactions against watchlists and behavioural rules.',
+        E'## Overview\n'
+        'RESTful API providing real-time AML screening for inbound and outbound payment transactions.\n\n'
+        '## Capabilities\n'
+        '- Watchlist matching (OFAC, EU, UN, HMT)\n'
+        '- Behavioural velocity rules\n'
+        '- Risk score output (0-100) with explainability payload\n'
+        '- P99 latency: 120ms\n\n'
+        '## Integration\n'
+        'POST /screen endpoint consumed by Payments Gateway and Wire Transfer service.',
+        'api',
+        'risk_compliance',
+        'ga',
+        c_user,
+        v_forge_module_id, 'workflow', c_e2,
+        v_country_gb, v_opco_uk, v_fg_risk, v_sector_banking, v_svc_fraud,
+        'restricted', 'cloud', 'internal', 'critical',
+        'GB', TRUE, FALSE,
+        '7 years (FCA SYSC 9.1, JMLSG)',
+        '99.95% uptime, P99 latency < 150ms',
+        ARRAY['gdpr', 'fca', 'sox'],
+        156, TRUE, NOW() - INTERVAL '90 days'
+    ) RETURNING id INTO v_a2;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a2, 'v3.1.2', c_user, NOW() - INTERVAL '14 days',
+        'Watchlist refresh: HMT Jan 2026 update applied. False positive rate reduced by 8%.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a2, 'forge_asset_id', c_e2::text, 'FORGE Workflow: AML Screening v3', NULL, TRUE, c_user);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a2, 'github_repo', 'sigai-org/aml-screening-api', 'GitHub: aml-screening-api',
+        'https://github.com/sigai-org/aml-screening-api', FALSE, c_user);
+
+    IF v_term_api IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a2, v_term_api, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_risk IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a2, v_term_risk, 'domain', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_gdpr IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a2, v_term_gdpr, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_fca IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a2, v_term_fca, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_sox IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a2, v_term_sox, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a2, v_tag_aml, c_user),
+           (v_a2, v_tag_realtime, c_user),
+           (v_a2, v_tag_screening, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[2/8] AML Transaction Screening API: %', v_a2;
+
+
+    -- =========================================================================
+    -- ASSET 3 — Real-time Payments Operations Dashboard
+    -- kind: dashboard | domain: payments | opco: DEV_UK_BANKING
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        primary_country_id, opco_id, function_group_id, industry_sector_id, service_offering_id,
+        data_classification, hosting_type, audience_type, business_criticality,
+        data_residency, contains_pii, is_client_facing,
+        retention_requirement, sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'Real-time Payments Operations Dashboard',
+        'Operational monitoring dashboard — throughput, failure rates, and SLA breach alerts for the UK payments stack.',
+        E'## Overview\n'
+        'Real-time monitoring dashboard for the UK payments processing stack.\n\n'
+        '## Panels\n'
+        '- Transaction throughput (TPS by channel)\n'
+        '- Failure rate by error category\n'
+        '- SLA breach heatmap\n'
+        '- Queue depth and latency percentiles\n\n'
+        '## Data refresh\n'
+        'Streaming via Kafka; 5-second refresh interval.',
+        'dashboard',
+        'payments',
+        'ga',
+        c_user,
+        v_forge_module_id, 'dashboard', c_e3,
+        v_country_gb, v_opco_uk, v_fg_payments, v_sector_banking, v_svc_payments,
+        'internal', 'cloud', 'internal', 'medium',
+        'GB', FALSE, FALSE,
+        '90 days (operational)',
+        '99.5% uptime',
+        ARRAY['pci_dss'],
+        78, FALSE, NOW() - INTERVAL '60 days'
+    ) RETURNING id INTO v_a3;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a3, 'v2.0.1', c_user, NOW() - INTERVAL '7 days',
+        'Added SLA breach heatmap. Fixed queue depth calculation for ISO 20022 messages.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a3, 'forge_asset_id', c_e3::text, 'FORGE Dashboard: Payments Ops v2', NULL, TRUE, c_user);
+
+    IF v_term_dashboard IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a3, v_term_dashboard, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_pci IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a3, v_term_pci, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a3, v_tag_payments, c_user),
+           (v_a3, v_tag_realtime, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[3/8] Real-time Payments Dashboard: %', v_a3;
+
+
+    -- =========================================================================
+    -- ASSET 4 — EU Retail Customer Segment Dataset
+    -- kind: dataset | domain: customer_analytics | opco: DEV_EU_RETAIL
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        primary_country_id, opco_id, function_group_id, industry_sector_id, service_offering_id,
+        data_classification, hosting_type, audience_type, business_criticality,
+        data_residency, contains_pii, is_client_facing,
+        retention_requirement, sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'EU Retail Customer Segment Dataset',
+        'Monthly behavioural segmentation snapshot — 12 segments for EU retail banking customers.',
+        E'## Overview\n'
+        'Monthly snapshot dataset of EU retail banking customers grouped into 12 '
+        'behavioural segments using RFM and lifecycle modelling.\n\n'
+        '## Schema\n'
+        'customer_id (pseudonymised), segment_code, segment_label, rfm_score, '
+        'lifecycle_stage, snapshot_month.\n\n'
+        '## Access\n'
+        'Available via the Data Platform API. Pseudonymised — no direct PII fields.',
+        'dataset',
+        'customer_analytics',
+        'ga',
+        c_user,
+        v_forge_module_id, 'dataset', c_e4,
+        v_country_de, v_opco_eu, v_fg_analytics, v_sector_banking, v_svc_cust,
+        'confidential', 'cloud', 'internal', 'medium',
+        'EU', TRUE, FALSE,
+        '5 years (GDPR Art. 30)',
+        'Monthly refresh; query SLA 30s p95',
+        ARRAY['gdpr'],
+        31, FALSE, NOW() - INTERVAL '45 days'
+    ) RETURNING id INTO v_a4;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a4, 'v4.2.0', c_user, NOW() - INTERVAL '45 days',
+        'Added lifestyle_stage dimension. Segment count expanded from 8 to 12.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a4, 'forge_asset_id', c_e4::text, 'FORGE Dataset: EU Customer Segments', NULL, TRUE, c_user);
+
+    IF v_term_dataset IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a4, v_term_dataset, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_gdpr IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a4, v_term_gdpr, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a4, v_tag_segmentation, c_user),
+           (v_a4, v_tag_ml, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[4/8] EU Customer Segment Dataset: %', v_a4;
+
+
+    -- =========================================================================
+    -- ASSET 5 — Credit Risk Scoring Model
+    -- kind: model | domain: risk_compliance | opco: DEV_UK_BANKING
+    -- (shares domain + opco + function_group with smoke-test AML asset → high similarity)
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        primary_country_id, opco_id, function_group_id, industry_sector_id, service_offering_id,
+        data_classification, hosting_type, audience_type, business_criticality,
+        data_residency, contains_pii, is_client_facing,
+        retention_requirement, sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'Credit Risk Scoring Model',
+        'Retail PD/LGD model used for loan origination decisioning and IFRS 9 provisioning.',
+        E'## Overview\n'
+        'Probability-of-default (PD) and loss-given-default (LGD) model for UK retail lending. '
+        'Drives loan origination decisions and IFRS 9 provisioning.\n\n'
+        '## Regulatory\n'
+        'Validated under Basel III IRB approach. Backtested quarterly. PRA-approved.\n\n'
+        '## Inputs\n'
+        'Credit bureau data, internal behavioural data, application attributes.\n\n'
+        '## Outputs\n'
+        'PD score (12-month horizon), LGD estimate, EAD estimate.',
+        'model',
+        'risk_compliance',
+        'ga',
+        c_user,
+        v_forge_module_id, 'model', c_e5,
+        v_country_gb, v_opco_uk, v_fg_risk, v_sector_banking, v_svc_fraud,
+        'restricted', 'cloud', 'internal', 'critical',
+        'GB', TRUE, FALSE,
+        '7 years (CRR Art. 144, FCA SYSC)',
+        '99.9% uptime, P99 < 500ms',
+        ARRAY['gdpr', 'fca', 'sox'],
+        203, TRUE, NOW() - INTERVAL '120 days'
+    ) RETURNING id INTO v_a5;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a5, 'v5.0.0', c_user, NOW() - INTERVAL '120 days',
+        'Major version: migrated from logistic regression to gradient boosted model. '
+        'Gini improved from 0.72 to 0.81. Passed PRA model validation.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a5, 'forge_asset_id', c_e5::text, 'FORGE Model: Credit Risk PD/LGD v5', NULL, TRUE, c_user);
+
+    IF v_term_model IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a5, v_term_model, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_risk IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a5, v_term_risk, 'domain', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_gdpr IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a5, v_term_gdpr, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_fca IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a5, v_term_fca, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_sox IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a5, v_term_sox, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a5, v_tag_credit, c_user),
+           (v_a5, v_tag_ml, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[5/8] Credit Risk Scoring Model: %', v_a5;
+
+
+    -- =========================================================================
+    -- ASSET 6 — KYC Identity Verification API
+    -- kind: api | domain: risk_compliance | opco: DEV_UK_BANKING | partner-facing
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        primary_country_id, opco_id, function_group_id, industry_sector_id, service_offering_id,
+        data_classification, hosting_type, audience_type, business_criticality,
+        data_residency, contains_pii, is_client_facing,
+        retention_requirement, sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'KYC Identity Verification API',
+        'Orchestrates customer identity verification — document checks, liveness detection, and sanctions screening.',
+        E'## Overview\n'
+        'End-to-end KYC orchestration API for customer onboarding. Coordinates:\n'
+        '- Document authenticity check (passport, driving licence)\n'
+        '- Biometric liveness detection\n'
+        '- PEP and sanctions screening\n'
+        '- Address verification\n\n'
+        '## Integration\n'
+        'Consumed by the Onboarding Portal and partner distribution channels via API gateway.',
+        'api',
+        'risk_compliance',
+        'ga',
+        c_user,
+        v_forge_module_id, 'workflow', c_e6,
+        v_country_gb, v_opco_uk, v_fg_risk, v_sector_banking, v_svc_fraud,
+        'confidential', 'cloud', 'partner', 'high',
+        'GB', TRUE, TRUE,
+        '5 years (FCA SYSC 3, MLR 2017)',
+        '99.9% uptime, P95 < 3s end-to-end',
+        ARRAY['gdpr', 'fca'],
+        89, FALSE, NOW() - INTERVAL '75 days'
+    ) RETURNING id INTO v_a6;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a6, 'v2.4.0', c_user, NOW() - INTERVAL '21 days',
+        'Added enhanced due diligence (EDD) pathway for high-risk jurisdictions. '
+        'Integrated adverse media screening.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a6, 'forge_asset_id', c_e6::text, 'FORGE Workflow: KYC Orchestration v2', NULL, TRUE, c_user);
+
+    IF v_term_api IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a6, v_term_api, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_risk IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a6, v_term_risk, 'domain', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_gdpr IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a6, v_term_gdpr, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_fca IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a6, v_term_fca, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a6, v_tag_kyc, c_user),
+           (v_a6, v_tag_screening, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[6/8] KYC Identity Verification API: %', v_a6;
+
+
+    -- =========================================================================
+    -- ASSET 7 — FCA Regulatory Reporting Template
+    -- kind: template | domain: risk_compliance | opco: DEV_UK_BANKING
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        primary_country_id, opco_id, function_group_id, industry_sector_id, service_offering_id,
+        data_classification, hosting_type, audience_type, business_criticality,
+        data_residency, contains_pii, is_client_facing,
+        retention_requirement, sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'FCA Regulatory Reporting Template Pack',
+        'Standardised template pack for FCA regulatory submissions — MIFID II, COLL, and GABRIEL reports.',
+        E'## Overview\n'
+        'Governance-approved template pack for FCA regulatory reporting. '
+        'Covers MIFID II transaction reporting, COLL fund reporting, and GABRIEL returns.\n\n'
+        '## Contents\n'
+        '12 report templates (XLSX + CSV), field-level data dictionaries, '
+        'validation rules, tolerance checks, and submission guidance notes.\n\n'
+        '## Updates\n'
+        'Revised in line with FCA Handbook changes. Current version covers the 2026 reporting calendar.',
+        'template',
+        'risk_compliance',
+        'ga',
+        c_user,
+        v_forge_module_id, 'template', c_e7,
+        v_country_gb, v_opco_uk, v_fg_risk, v_sector_banking, v_svc_fraud,
+        'internal', 'cloud', 'internal', 'medium',
+        'GB', FALSE, FALSE,
+        '7 years (FCA SYSC 9)',
+        '99% availability during business hours',
+        ARRAY['fca', 'sox'],
+        55, FALSE, NOW() - INTERVAL '180 days'
+    ) RETURNING id INTO v_a7;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a7, 'v2026.01', c_user, NOW() - INTERVAL '60 days',
+        'Annual revision aligned to FCA 2026 reporting calendar. Added MIFID II RTS 22 updates.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a7, 'forge_asset_id', c_e7::text, 'FORGE Template: FCA Reporting Pack 2026', NULL, TRUE, c_user);
+
+    IF v_term_template IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a7, v_term_template, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_risk IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a7, v_term_risk, 'domain', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_fca IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a7, v_term_fca, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+    IF v_term_sox IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a7, v_term_sox, 'compliance_tag', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a7, v_tag_reporting, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[7/8] FCA Regulatory Reporting Template: %', v_a7;
+
+
+    -- =========================================================================
+    -- ASSET 8 — Data Quality Connector
+    -- kind: connector | domain: data_platform | global scope (no org FK)
+    -- =========================================================================
+
+    INSERT INTO catalog.assets (
+        name, short_summary, description,
+        asset_kind, domain, publication_status,
+        owner_id,
+        source_module_id, source_entity_type, source_entity_id,
+        -- No org FK columns — global scope asset
+        data_classification, hosting_type, audience_type, business_criticality,
+        contains_pii, is_client_facing,
+        sla_description, compliance_tags,
+        usage_count, featured, published_at
+    ) VALUES (
+        'Great Expectations Data Quality Connector',
+        'Pre-built connector integrating Great Expectations DQ checks into the SigAI pipeline orchestration layer.',
+        E'## Overview\n'
+        'Reusable connector that wraps the Great Expectations Python library and exposes '
+        'DQ check results as structured SigAI pipeline events.\n\n'
+        '## Capabilities\n'
+        '- Column-level null rate, uniqueness, range, and regex checks\n'
+        '- Schema drift detection\n'
+        '- DQ checkpoint results emitted to the audit trail\n\n'
+        '## Usage\n'
+        'Drop into any pipeline as a pre- or post-processing step. Zero configuration required.',
+        'connector',
+        'data_platform',
+        'ga',
+        c_user,
+        v_forge_module_id, 'connector', c_e8,
+        'internal', 'cloud', 'internal', 'low',
+        FALSE, FALSE,
+        '99% availability',
+        ARRAY[]::text[],
+        19, FALSE, NOW() - INTERVAL '20 days'
+    ) RETURNING id INTO v_a8;
+
+    INSERT INTO catalog.asset_versions (asset_id, version, released_by, released_at, change_summary, is_current)
+    VALUES (v_a8, 'v1.1.0', c_user, NOW() - INTERVAL '20 days',
+        'Upgraded Great Expectations SDK to 1.3.x. Added schema drift detection capability.',
+        TRUE);
+
+    INSERT INTO catalog.asset_source_refs (asset_id, ref_type, ref_value, label, href, is_primary, added_by)
+    VALUES (v_a8, 'forge_asset_id', c_e8::text, 'FORGE Connector: Great Expectations DQ', NULL, TRUE, c_user);
+
+    IF v_term_connector IS NOT NULL THEN
+        INSERT INTO catalog.asset_classifications (asset_id, term_id, scheme_code, classified_by)
+        VALUES (v_a8, v_term_connector, 'asset_kind', c_user)
+        ON CONFLICT (asset_id, term_id) DO NOTHING;
+    END IF;
+
+    INSERT INTO catalog.asset_tags (asset_id, tag_id, tagged_by)
+    VALUES (v_a8, v_tag_dq, c_user),
+           (v_a8, v_tag_connector, c_user)
+    ON CONFLICT (asset_id, tag_id) DO NOTHING;
+
+    RAISE NOTICE '[8/8] Data Quality Connector: %', v_a8;
+
+
+    -- =========================================================================
+    -- Summary
+    -- =========================================================================
+
+    RAISE NOTICE '';
+    RAISE NOTICE '============================================================';
+    RAISE NOTICE 'Dev seed complete. 8 catalog assets inserted.';
+    RAISE NOTICE '============================================================';
+    RAISE NOTICE '  [1] Churn Prediction Model:       %', v_a1;
+    RAISE NOTICE '  [2] AML Transaction Screening API: %', v_a2;
+    RAISE NOTICE '  [3] Payments Ops Dashboard:        %', v_a3;
+    RAISE NOTICE '  [4] EU Customer Segment Dataset:   %', v_a4;
+    RAISE NOTICE '  [5] Credit Risk Scoring Model:     %', v_a5;
+    RAISE NOTICE '  [6] KYC Verification API:          %', v_a6;
+    RAISE NOTICE '  [7] FCA Regulatory Template Pack:  %', v_a7;
+    RAISE NOTICE '  [8] Data Quality Connector:        %', v_a8;
+    RAISE NOTICE '';
+    RAISE NOTICE '  Run: SELECT name, asset_kind, domain, publication_status';
+    RAISE NOTICE '       FROM catalog.assets ORDER BY created_at DESC LIMIT 10;';
+
+END;
+$$ LANGUAGE plpgsql;
+
+COMMIT;

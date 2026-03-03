@@ -29,6 +29,21 @@ export const config = {
     origins: optional('CORS_ORIGINS', 'http://localhost:5173').split(','),
   },
 
+  ai: {
+    openaiApiKey: process.env['OPENAI_API_KEY'] ?? '',
+    // Azure OpenAI — set all three to activate Azure mode
+    azureEndpoint: process.env['AZURE_OPENAI_ENDPOINT'] ?? '',
+    azureDeployment: optional('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o-mini'),
+    azureApiVersion: optional('AZURE_OPENAI_API_VERSION', '2024-12-01-preview'),
+    // When Azure is active, OPENAI_MODEL is ignored; azureDeployment is used instead
+    model: optional('OPENAI_MODEL', 'gpt-4o-mini'),
+    // Fallback standard OpenAI key — used when Azure fails, before stub
+    openaiFallbackKey: process.env['OPENAI_FALLBACK_KEY'] ?? '',
+    summaryTtlMs: parseInt(optional('AI_SUMMARY_TTL_MS', '1800000'), 10),
+    recTtlMs: parseInt(optional('AI_REC_TTL_MS', '900000'), 10),
+    enrichTtlMs: parseInt(optional('AI_ENRICH_TTL_MS', '900000'), 10),
+  },
+
   version: optional('APP_VERSION', '0.1.0'),
 } as const;
 

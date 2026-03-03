@@ -2,7 +2,7 @@
 // API request/response types for the Catalog backend
 // ---------------------------------------------------------------------------
 
-import type { PublicationStatus, CatalogAsset, AssetSourceRef } from './catalog.types.js';
+import type { PublicationStatus, CatalogAsset, AssetSourceRef, SimilarAsset } from './catalog.types.js';
 
 // ---------------------------------------------------------------------------
 // Concrete response shapes for the 3 wired endpoints
@@ -65,7 +65,7 @@ export interface AssetListQuery {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/catalog/search  — query params
+// GET /api/catalog/search  — query params and response
 // ---------------------------------------------------------------------------
 
 export interface SearchQuery {
@@ -73,8 +73,23 @@ export interface SearchQuery {
   publication_status?: PublicationStatus;
   asset_kind?: string;
   compliance_tag?: string;
+  domain?: string;
   page?: number;
   pageSize?: number;
+}
+
+export interface SearchResponse {
+  data: CatalogAsset[];
+  meta: PaginationMeta;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/catalog/assets/:id/similar  — response
+// ---------------------------------------------------------------------------
+
+export interface SimilarAssetsResponse {
+  data: SimilarAsset[];
+  assetId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +129,65 @@ export interface HealthResponse {
   version: string;
   timestamp: string;
   checks: HealthCheck[];
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/catalog/assets/:id/summary  — AI summary
+// ---------------------------------------------------------------------------
+
+export interface AssetAiSummaryResponse {
+  assetId: string;
+  businessSummary: string;
+  technicalSummary: string;
+  reuseGuidance: string;
+  keyRisks: string[];
+  generatedAt: string;
+  provider: 'openai' | 'stub';
+  model: string;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/catalog/assets/:id/recommendations  — AI recommendations
+// ---------------------------------------------------------------------------
+
+export interface AssetRecommendation {
+  asset: CatalogAsset;
+  reason: string;
+  similarityScore: number;
+}
+
+export interface AssetRecommendationsResponse {
+  data: AssetRecommendation[];
+  assetId: string;
+  generatedAt: string;
+  provider: 'openai' | 'stub';
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/catalog/assets/:id/enrichment-suggestions  — AI enrichment
+// ---------------------------------------------------------------------------
+
+export interface EnrichmentSuggestion<T> {
+  value: T;
+  confidence: 'high' | 'medium' | 'low';
+  rationale: string;
+}
+
+export interface AssetEnrichmentSuggestionsResponse {
+  assetId: string;
+  suggestedTags: EnrichmentSuggestion<string>[];
+  suggestedClassifications: EnrichmentSuggestion<{
+    scheme_code: string;
+    code: string;
+    label: string;
+  }>[];
+  nfrClarifications: EnrichmentSuggestion<{
+    field: string;
+    currentValue: string | null;
+    suggestedValue: string;
+  }>[];
+  generatedAt: string;
+  provider: 'openai' | 'stub';
 }
 
 // ---------------------------------------------------------------------------

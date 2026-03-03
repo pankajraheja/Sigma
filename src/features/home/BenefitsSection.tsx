@@ -45,7 +45,7 @@ const BENEFITS: Benefit[] = [
     id: 'auditability',
     Icon: Eye,
     headline: 'Full Auditability',
-    body: 'Lineage, access history, and deployment records are captured automatically across every action in the gateway.',
+    body: 'Lineage, access history, and deployment records are captured automatically across every action in the platform.',
   },
 ]
 
@@ -100,11 +100,11 @@ export default function BenefitsSection() {
             id="benefits-heading"
             className="text-xl font-bold text-ink-inverse tracking-tight mb-2"
           >
-            The case for a unified gateway.
+            The case for SigAI.
           </h2>
           <p className="text-[14px] text-ink-inverse/50 max-w-xl leading-relaxed">
-            Six reasons why enterprise teams standardise on a single platform
-            before scaling delivery.
+            Six reasons why enterprise teams standardise on a unified platform
+            before scaling AI delivery.
           </p>
         </div>
 

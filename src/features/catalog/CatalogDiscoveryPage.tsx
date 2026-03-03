@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search,
@@ -11,16 +11,25 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react'
 import SectionHeader from '../../components/ui/SectionHeader'
 import { Card, CardBody, CardFooter } from '../../components/ui/Card'
 import AssetKindBadge from './components/AssetKindBadge'
 import PublicationStatusBadge from './components/PublicationStatusBadge'
 import { useCatalogAssets } from './hooks/useCatalogAssets'
+import { useSearchCatalogAssets } from './hooks/useSearchCatalogAssets'
 import { useTaxonomyTerms } from './hooks/useTaxonomyTerms'
-import type { BackendAsset, BackendPublicationStatus, CatalogListParams } from './api/types'
+import type { BackendAsset, BackendPublicationStatus, CatalogListParams, SearchParams } from './api/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+
+const SEARCH_EXAMPLES = [
+  'fraud detection',
+  'customer churn model',
+  'real-time payments api',
+  'gdpr compliance template',
+] as const
 
 const PUBLICATION_STATUSES: { value: BackendPublicationStatus; label: string }[] = [
   { value: 'ga',         label: 'GA' },
@@ -32,9 +41,23 @@ const PUBLICATION_STATUSES: { value: BackendPublicationStatus; label: string }[]
 const DATA_CLASSIFICATIONS = ['Public', 'Internal', 'Confidential', 'Restricted'] as const
 const HOSTING_TYPES        = ['Cloud', 'On-Premise', 'Hybrid', 'SaaS'] as const
 
+const SEARCH_MIN_LENGTH = 2
+const SEARCH_DEBOUNCE_MS = 400
+
 type SortKey = 'updated_at' | 'published_at' | 'name'
 
 const PAGE_SIZE = 24
+
+// ── Simple debounce hook ───────────────────────────────────────────────────────
+
+function useDebounce(value: string, delayMs: number): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}
 
 // ── Filter section (collapsible) ──────────────────────────────────────────────
 
@@ -168,7 +191,6 @@ function ResultCard({ asset }: { asset: BackendAsset }) {
   return (
     <Card>
       <CardBody>
-        {/* Badges row */}
         <div className="flex items-center flex-wrap gap-1.5 mb-3">
           <AssetKindBadge kind={asset.asset_kind} />
           <PublicationStatusBadge status={asset.publication_status} />
@@ -187,17 +209,14 @@ function ResultCard({ asset }: { asset: BackendAsset }) {
           )}
         </div>
 
-        {/* Name */}
         <h3 className="text-[14px] font-semibold text-ink leading-snug mb-1.5">
           {asset.name}
         </h3>
 
-        {/* Summary */}
         <p className="text-[12px] text-ink-muted leading-relaxed line-clamp-2 mb-3">
           {asset.short_summary ?? ''}
         </p>
 
-        {/* Meta row */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-faint mt-auto">
           {asset.domain && <span>{asset.domain}</span>}
           {asset.domain && <span aria-hidden="true">·</span>}
@@ -210,7 +229,6 @@ function ResultCard({ asset }: { asset: BackendAsset }) {
 
       <CardFooter>
         <div className="flex items-center justify-between gap-2">
-          {/* Compliance tags */}
           <div className="flex flex-wrap gap-1 min-w-0">
             {asset.compliance_tags.slice(0, 3).map((tag) => (
               <span
@@ -282,9 +300,9 @@ export default function CatalogDiscoveryPage() {
   const initialStatus = searchParams.get('status') as BackendPublicationStatus | null
 
   // ── Taxonomy terms from backend ───────────────────────────────────────────
-  const { terms: kindTerms }           = useTaxonomyTerms('asset_kind')
-  const { terms: domainTerms }         = useTaxonomyTerms('domain')
-  const { terms: complianceTagTerms }  = useTaxonomyTerms('compliance_tag')
+  const { terms: kindTerms }          = useTaxonomyTerms('asset_kind')
+  const { terms: domainTerms }        = useTaxonomyTerms('domain')
+  const { terms: complianceTagTerms } = useTaxonomyTerms('compliance_tag')
 
   // ── Server-side filter state ──────────────────────────────────────────────
   const [selectedKind,          setSelectedKind]          = useState<string>(initialKind)
@@ -296,13 +314,17 @@ export default function CatalogDiscoveryPage() {
   const [page, setPage] = useState(1)
   const [sort, setSort] = useState<SortKey>('updated_at')
 
+  // ── Search text + debounce ────────────────────────────────────────────────
+  const [searchText, setSearchText] = useState('')
+  const debouncedSearch = useDebounce(searchText, SEARCH_DEBOUNCE_MS)
+  const isSearchMode    = debouncedSearch.trim().length >= SEARCH_MIN_LENGTH
+
   // ── Client-side filter state (applied to loaded page) ────────────────────
   const [selectedClassifs, setSelectedClassifs] = useState<Set<string>>(new Set())
   const [selectedHosting,  setSelectedHosting]  = useState<Set<string>>(new Set())
   const [piiFilter,        setPiiFilter]        = useState<'all' | 'yes' | 'no'>('all')
-  const [searchText,       setSearchText]       = useState('')
 
-  // Build server-side params
+  // ── Server-side params (browse mode) ─────────────────────────────────────
   const serverParams: CatalogListParams = {
     ...(selectedKind          ? { asset_kind:         selectedKind }                              : {}),
     ...(selectedStatus        ? { publication_status: selectedStatus as BackendPublicationStatus } : {}),
@@ -314,26 +336,41 @@ export default function CatalogDiscoveryPage() {
     order:    'desc',
   }
 
-  const { data, loading, error } = useCatalogAssets(serverParams)
+  // ── Search params (search mode) ───────────────────────────────────────────
+  const searchQueryParams: SearchParams = {
+    q: isSearchMode ? debouncedSearch : '',
+    ...(selectedKind          ? { asset_kind:         selectedKind }                              : {}),
+    ...(selectedStatus        ? { publication_status: selectedStatus as BackendPublicationStatus } : {}),
+    ...(selectedDomain        ? { domain:             selectedDomain }                            : {}),
+    ...(selectedComplianceTag ? { compliance_tag:     selectedComplianceTag }                     : {}),
+    page,
+    pageSize: PAGE_SIZE,
+  }
 
-  const allItems   = data?.items ?? []
-  const totalItems = data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
+  // Both hooks always run; only one result is used based on isSearchMode
+  const browseResult = useCatalogAssets(serverParams)
+  const searchResult = useSearchCatalogAssets(searchQueryParams)
+
+  const activeResult = isSearchMode ? searchResult : browseResult
+
+  // Map search result shape to match browse shape
+  const allItems   = isSearchMode
+    ? (searchResult.data?.data ?? [])
+    : (browseResult.data?.items ?? [])
+
+  const totalItems = isSearchMode
+    ? (searchResult.data?.meta.total ?? 0)
+    : (browseResult.data?.total ?? 0)
+
+  const totalPages = isSearchMode
+    ? (searchResult.data?.meta.totalPages ?? Math.max(1, Math.ceil(totalItems / PAGE_SIZE)))
+    : Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
+
+  const { loading, error } = activeResult
 
   // ── Client-side filter on loaded page ────────────────────────────────────
   const results = useMemo(() => {
     let list = allItems
-
-    const q = searchText.trim().toLowerCase()
-    if (q) {
-      list = list.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          (a.short_summary ?? '').toLowerCase().includes(q) ||
-          a.compliance_tags.some((t) => t.toLowerCase().includes(q)) ||
-          (a.domain ?? '').toLowerCase().includes(q),
-      )
-    }
 
     if (selectedClassifs.size > 0)
       list = list.filter((a) => a.data_classification && selectedClassifs.has(a.data_classification))
@@ -343,7 +380,7 @@ export default function CatalogDiscoveryPage() {
     if (piiFilter === 'no')  list = list.filter((a) => !a.contains_pii)
 
     return list
-  }, [allItems, searchText, selectedClassifs, selectedHosting, piiFilter])
+  }, [allItems, selectedClassifs, selectedHosting, piiFilter])
 
   // Counts derived from loaded page for filter labels
   const classifCounts = useMemo(
@@ -398,10 +435,22 @@ export default function CatalogDiscoveryPage() {
     setSort(s)
     setPage(1)
   }
+  function handleSearchChange(text: string) {
+    setSearchText(text)
+    setPage(1)
+  }
 
-  const statusLabel         = PUBLICATION_STATUSES.find((s) => s.value === selectedStatus)?.label ?? selectedStatus
-  const domainLabel         = domainTerms.find((t) => t.code === selectedDomain)?.label ?? selectedDomain
-  const complianceTagLabel  = complianceTagTerms.find((t) => t.code === selectedComplianceTag)?.label ?? selectedComplianceTag
+  const statusLabel        = PUBLICATION_STATUSES.find((s) => s.value === selectedStatus)?.label ?? selectedStatus
+  const domainLabel        = domainTerms.find((t) => t.code === selectedDomain)?.label ?? selectedDomain
+  const complianceTagLabel = complianceTagTerms.find((t) => t.code === selectedComplianceTag)?.label ?? selectedComplianceTag
+
+  // Count for the subtitle
+  const resultCount = results.length
+  const subtitleText = loading
+    ? 'Loading…'
+    : isSearchMode
+      ? `${resultCount}${resultCount < totalItems ? ` of ${totalItems}` : ''} result${totalItems !== 1 ? 's' : ''} for "${debouncedSearch}"`
+      : `${resultCount}${resultCount < totalItems ? ` of ${totalItems}` : ''} asset${totalItems !== 1 ? 's' : ''}`
 
   return (
     <div className="px-8 py-10">
@@ -410,27 +459,25 @@ export default function CatalogDiscoveryPage() {
         {/* ── Header ────────────────────────────────────────────── */}
         <SectionHeader
           id="discovery-heading"
-          eyebrow="Catalog"
+          eyebrow="AI Navigator"
           title="Asset Discovery"
-          subtitle={
-            loading
-              ? 'Loading…'
-              : `${results.length}${results.length < totalItems ? ` of ${totalItems}` : ''} asset${totalItems !== 1 ? 's' : ''}`
-          }
+          subtitle={subtitleText}
           action={
-            <div className="flex items-center gap-2">
-              <label htmlFor="sort-select" className="text-[12px] text-ink-faint">Sort:</label>
-              <select
-                id="sort-select"
-                value={sort}
-                onChange={(e) => handleSortChange(e.target.value as SortKey)}
-                className="text-[12px] border border-border rounded-md px-2 py-1 bg-surface text-ink focus:outline-none focus:ring-1 focus:ring-primary-400 cursor-pointer"
-              >
-                <option value="updated_at">Recently Updated</option>
-                <option value="published_at">Recently Published</option>
-                <option value="name">Name (A–Z)</option>
-              </select>
-            </div>
+            !isSearchMode ? (
+              <div className="flex items-center gap-2">
+                <label htmlFor="sort-select" className="text-[12px] text-ink-faint">Sort:</label>
+                <select
+                  id="sort-select"
+                  value={sort}
+                  onChange={(e) => handleSortChange(e.target.value as SortKey)}
+                  className="text-[12px] border border-border rounded-md px-2 py-1 bg-surface text-ink focus:outline-none focus:ring-1 focus:ring-primary-400 cursor-pointer"
+                >
+                  <option value="updated_at">Recently Updated</option>
+                  <option value="published_at">Recently Published</option>
+                  <option value="name">Name (A–Z)</option>
+                </select>
+              </div>
+            ) : null
           }
         />
 
@@ -446,6 +493,12 @@ export default function CatalogDiscoveryPage() {
         {hasFilters && (
           <div className="flex flex-wrap items-center gap-1.5 mb-5">
             <span className="text-[11px] text-ink-faint mr-1">Active:</span>
+            {searchText.trim() && (
+              <ActiveChip
+                label={`"${searchText.trim()}"`}
+                onRemove={() => handleSearchChange('')}
+              />
+            )}
             {selectedKind          && <ActiveChip label={kindTerms.find((t) => t.code === selectedKind)?.label ?? selectedKind} onRemove={() => handleKindChange('')} />}
             {selectedStatus        && <ActiveChip label={statusLabel}        onRemove={() => handleStatusChange('')} />}
             {selectedDomain        && <ActiveChip label={domainLabel}        onRemove={() => handleDomainChange('')} />}
@@ -488,18 +541,34 @@ export default function CatalogDiscoveryPage() {
                 )}
               </div>
 
-              {/* Keyword search */}
-              <div className="relative mb-4">
+              {/* Keyword / semantic search */}
+              <div className="relative mb-1">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" strokeWidth={2} />
                 <input
                   type="search"
                   value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  placeholder="Search…"
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Search assets…"
                   className="w-full pl-7 pr-3 py-1.5 text-[12px] border border-border rounded-md bg-surface-subtle text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-primary-400"
-                  aria-label="Filter by keyword"
+                  aria-label="Search assets"
                 />
               </div>
+
+              {/* Example chips — visible only when search is empty */}
+              {!searchText && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {SEARCH_EXAMPLES.map((ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      onClick={() => handleSearchChange(ex)}
+                      className="text-[10px] text-ink-faint hover:text-primary-600 border border-border hover:border-primary-300 rounded px-2 py-0.5 transition-colors"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Asset Type — server-side, radio, driven by taxonomy */}
               <FilterGroup title="Asset Type" defaultOpen activeCount={selectedKind ? 1 : 0}>
@@ -588,6 +657,23 @@ export default function CatalogDiscoveryPage() {
 
           {/* ── Result grid ─────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
+
+            {/* Search mode banner */}
+            {isSearchMode && !loading && (
+              <div className="flex items-center gap-2 px-3 py-2 mb-4 rounded-md bg-primary-50 border border-primary-200 text-[12px] text-primary-700">
+                <Sparkles size={13} strokeWidth={2} className="shrink-0" />
+                <span>
+                  AI-powered search · {totalItems} result{totalItems !== 1 ? 's' : ''} for{' '}
+                  <strong>"{debouncedSearch}"</strong>
+                  {totalItems === 0 && (
+                    <span className="ml-1 text-primary-500">
+                      — try different keywords or remove filters
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
             {loading ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}

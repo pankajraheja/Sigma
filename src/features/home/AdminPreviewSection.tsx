@@ -214,7 +214,7 @@ export default function AdminPreviewSection() {
     >
       <SectionHeader
         id="admin-preview-heading"
-        eyebrow="Admin Module · Preview"
+        eyebrow="Admin Control Center"
         title="Central Governance Controls"
         subtitle="Taxonomy, metadata, access control, and permissions — managed from a single governance plane."
         action={
@@ -222,7 +222,7 @@ export default function AdminPreviewSection() {
             to="/admin"
             className="inline-flex items-center gap-1.5 text-[12px] font-medium text-primary-600 hover:text-primary-700 transition-colors"
           >
-            Go to Admin
+            Open Admin Control Center
             <ArrowRight size={13} strokeWidth={2} />
           </Link>
         }

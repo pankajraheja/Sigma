@@ -6,11 +6,14 @@
 //   GET /api/catalog/assets/:id/source-refs
 //   GET /api/catalog/assets/:id/classifications
 //   GET /api/catalog/assets/:id/tags
+//   GET /api/catalog/assets/:id/similar
 // ---------------------------------------------------------------------------
 
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { assetService } from '../services/asset.service.js';
+import { discoveryService } from '../services/discovery.service.js';
+import { aiService } from '../services/ai.service.js';
 import type { AssetListQuery } from '../models/api.types.js';
 
 export const assetsRouter = Router();
@@ -96,6 +99,60 @@ assetsRouter.get(
     try {
       const tags = await assetService.getAssetTags(req.params['id'] ?? '');
       res.json({ data: tags });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/catalog/assets/:id/similar
+// Returns up to `limit` (default 5, max 20) similar discoverable assets,
+// ranked by shared taxonomy/tag/org signals.
+// TODO (Phase 2): replace heuristic ranking with pgvector cosine similarity.
+assetsRouter.get(
+  '/:id/similar',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const limit = req.query['limit'] !== undefined ? Number(req.query['limit']) : 5;
+      const result = await discoveryService.getSimilar(req.params['id'] ?? '', limit);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/catalog/assets/:id/summary
+assetsRouter.get(
+  '/:id/summary',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await aiService.getSummary(req.params['id'] ?? ''));
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/catalog/assets/:id/recommendations
+assetsRouter.get(
+  '/:id/recommendations',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const limit = req.query['limit'] !== undefined ? Number(req.query['limit']) : 5;
+      res.json(await aiService.getRecommendations(req.params['id'] ?? '', limit));
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/catalog/assets/:id/enrichment-suggestions
+assetsRouter.get(
+  '/:id/enrichment-suggestions',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await aiService.getEnrichmentSuggestions(req.params['id'] ?? ''));
     } catch (err) {
       next(err);
     }

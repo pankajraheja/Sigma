@@ -26,10 +26,10 @@ export const PLATFORM_MODULES: PlatformModule[] = [
   // ── Discovery ─────────────────────────────────────────────────────────────
   {
     id:               'catalog',
-    displayName:      'Catalog',
-    shortDescription: 'Browse and govern the enterprise asset registry.',
+    displayName:      'AI Navigator',
+    shortDescription: 'AI-powered discovery for approved enterprise assets.',
     description:
-      'Browse, search, and govern the enterprise asset registry. Unified metadata, lineage, and classification across all data and service domains.',
+      'AI Navigator is the semantic discovery layer for approved enterprise assets. Discover, understand, compare, and reuse certified AI models, datasets, APIs, applications, workflows, and prototypes across SigAI using semantic search and guided navigation.',
     category:    'Discovery',
     status:      'live',
     basePath:    '/catalog',
@@ -43,10 +43,10 @@ export const PLATFORM_MODULES: PlatformModule[] = [
   // ── Intake ────────────────────────────────────────────────────────────────
   {
     id:               'intake',
-    displayName:      'Intake',
-    shortDescription: 'Submit and track governed data requests and onboarding forms.',
+    displayName:      'Request Hub',
+    shortDescription: 'Submit, track, and manage requests for new assets, solutions, and capabilities.',
     description:
-      'Submit, track, and govern incoming data requests, asset onboarding forms, and project intake workflows. Entry point for all governed work.',
+      'Request Hub is the governed entry point for all new work across SigAI. Submit, track, and manage requests for new assets, solutions, and capabilities — with built-in routing, approval workflows, and full audit history.',
     category:    'Intake',
     status:      'preview',
     basePath:    '/intake',
@@ -60,10 +60,10 @@ export const PLATFORM_MODULES: PlatformModule[] = [
   // ── Build ─────────────────────────────────────────────────────────────────
   {
     id:               'prototype-builder',
-    displayName:      'Prototype Builder',
-    shortDescription: 'Assemble governed low-code prototypes for stakeholder validation.',
+    displayName:      'Prototype Lab',
+    shortDescription: 'Design and refine low-code or no-code prototypes for rapid experimentation.',
     description:
-      'Rapidly assemble governed low-code experiences for stakeholder validation before full engineering investment.',
+      'Prototype Lab is the rapid experimentation environment for SigAI. Design, iterate, and validate low-code or no-code prototypes before committing to full engineering investment — with governed asset references and stakeholder sharing built in.',
     category:    'Build',
     status:      'live',
     basePath:    '/prototype-builder',
@@ -75,10 +75,10 @@ export const PLATFORM_MODULES: PlatformModule[] = [
   },
   {
     id:               'app-builder',
-    displayName:      'Application Builder',
-    shortDescription: 'Engineer full-stack applications with governed scaffolding.',
+    displayName:      'Solution Studio',
+    shortDescription: 'Build production-ready applications and engineering solutions.',
     description:
-      'Engineer full-stack applications with scaffolded templates, shared component libraries, and integrated deployment pipelines.',
+      'Solution Studio is the full-stack engineering workspace for SigAI. Build, scaffold, and ship production-ready applications and engineering solutions with governed templates, shared component libraries, and integrated deployment pipelines.',
     category:    'Build',
     status:      'beta',
     basePath:    '/app-builder',
@@ -92,10 +92,10 @@ export const PLATFORM_MODULES: PlatformModule[] = [
   // ── Orchestrate ───────────────────────────────────────────────────────────
   {
     id:               'forge',
-    displayName:      'FORGE',
-    shortDescription: 'Design and run governed multi-agent AI pipelines.',
+    displayName:      'Agent Forge',
+    shortDescription: 'Create, orchestrate, and govern agents, skills, connectors, and workflows.',
     description:
-      'Design, execute, and monitor multi-agent AI pipelines with traceability, approval gates, and enterprise policy enforcement.',
+      'Agent Forge is the multi-agent orchestration platform for SigAI. Create, configure, and govern AI agents, skills, connectors, and end-to-end workflows — with full traceability, approval gates, and enterprise policy enforcement at every step.',
     category:    'Orchestrate',
     status:      'beta',
     basePath:    '/forge',
@@ -108,10 +108,10 @@ export const PLATFORM_MODULES: PlatformModule[] = [
   },
   {
     id:               'pipeline',
-    displayName:      'Pipeline',
-    shortDescription: 'Manage integration flows, event streams, and transformation jobs.',
+    displayName:      'Delivery Hub',
+    shortDescription: 'Manage certification, automation, release progression, and promotion to GA.',
     description:
-      'Manage integration flows, event streams, and transformation jobs across on-premise and cloud environments.',
+      'Delivery Hub manages the end-to-end release lifecycle for SigAI assets and solutions. Automate certification checks, coordinate release progression, and govern promotion gates from preview through to general availability.',
     category:    'Orchestrate',
     status:      'preview',
     basePath:    '/pipeline',
@@ -125,10 +125,10 @@ export const PLATFORM_MODULES: PlatformModule[] = [
   // ── Govern ────────────────────────────────────────────────────────────────
   {
     id:               'admin',
-    displayName:      'Admin',
-    shortDescription: 'Administer taxonomy, access control, and platform standards.',
+    displayName:      'Admin Control Center',
+    shortDescription: 'Govern taxonomy, metadata, access, platform settings, and shared standards.',
     description:
-      'Administer taxonomy, metadata standards, access control policies, and user provisioning across the SigAI workspace.',
+      'Admin Control Center is the governance and configuration hub for SigAI. Manage taxonomy hierarchies, metadata standards, access control policies, user provisioning, platform settings, and shared enterprise standards across the entire workspace.',
     category:    'Govern',
     status:      'live',
     basePath:    '/admin',

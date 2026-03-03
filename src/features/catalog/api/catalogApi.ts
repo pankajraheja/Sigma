@@ -9,11 +9,17 @@ import type {
   ApiAssetClassificationsResponse,
   ApiAssetTagsResponse,
   ApiHealthResponse,
+  ApiSearchResponse,
+  ApiSimilarAssetsResponse,
   ApiTaxonomyResponse,
   ApiTagsResponse,
+  ApiAssetAiSummaryResponse,
+  ApiAssetRecommendationsResponse,
+  ApiAssetEnrichmentSuggestionsResponse,
   BackendAssetVersion,
   BackendSourceRef,
   CatalogListParams,
+  SearchParams,
   TaxonomyParams,
   TagSearchParams,
 } from './types'
@@ -77,4 +83,27 @@ export const catalogApi = {
 
   getTags: (params: TagSearchParams = {}) =>
     get<ApiTagsResponse>('/tags', params as Record<string, string | number | undefined>),
+
+  searchAssets: (params: SearchParams) =>
+    get<ApiSearchResponse>('/search', params as Record<string, string | number | undefined>),
+
+  getSimilarAssets: (id: string, limit = 5) =>
+    get<ApiSimilarAssetsResponse>(
+      `/assets/${encodeURIComponent(id)}/similar`,
+      { limit },
+    ),
+
+  getAssetSummary: (id: string) =>
+    get<ApiAssetAiSummaryResponse>(`/assets/${encodeURIComponent(id)}/summary`),
+
+  getAssetRecommendations: (id: string, limit = 5) =>
+    get<ApiAssetRecommendationsResponse>(
+      `/assets/${encodeURIComponent(id)}/recommendations`,
+      { limit },
+    ),
+
+  getEnrichmentSuggestions: (id: string) =>
+    get<ApiAssetEnrichmentSuggestionsResponse>(
+      `/assets/${encodeURIComponent(id)}/enrichment-suggestions`,
+    ),
 }

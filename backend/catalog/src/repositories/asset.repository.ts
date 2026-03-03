@@ -138,7 +138,7 @@ export const assetRepository = {
       SELECT v.*
       FROM catalog.asset_versions v
       WHERE v.asset_id = $1
-      ORDER BY v.released_at DESC NULLS LAST, v.created_at DESC
+      ORDER BY v.released_at DESC NULLS LAST
     `;
     const result = await db.query<AssetVersion>(sql, [assetId]);
     return result.rows;

@@ -202,7 +202,7 @@ export default function CatalogHomePage() {
           <div className="flex items-center gap-3 mb-5" aria-hidden="true">
             <div className="h-px w-8 bg-ribbon" />
             <span className="text-ribbon text-[11px] font-semibold tracking-[0.18em] uppercase">
-              Discovery Layer
+              AI-Powered Discovery
             </span>
           </div>
 
@@ -210,13 +210,14 @@ export default function CatalogHomePage() {
             id="catalog-home-heading"
             className="text-[2.25rem] font-bold tracking-tight text-ink-inverse leading-tight mb-4 max-w-lg"
           >
-            Enterprise Asset Catalog
+            AI Navigator
           </h1>
 
           <p className="text-[14px] text-ink-inverse/60 max-w-2xl mb-8 leading-relaxed">
-            The Catalog is the governed discovery layer for approved enterprise assets — datasets,
-            APIs, models, dashboards, pipelines, and more. Every asset here has been certified,
-            classified, and published through the SigAI governance workflow.
+            AI Navigator is the semantic discovery layer for approved enterprise assets. Discover,
+            understand, compare, and reuse certified AI models, datasets, APIs, applications,
+            workflows, and prototypes across SigAI — all governed, classified, and published
+            through the SigAI governance workflow.
           </p>
 
           {/* Semantic search — UI placeholder, no backend yet */}
@@ -381,7 +382,7 @@ export default function CatalogHomePage() {
                   All assets governed by enterprise standards
                 </h2>
                 <p className="text-[13px] text-ink-muted max-w-xl leading-relaxed">
-                  Every asset in the Catalog has passed certification review. Metadata conforms to
+                  Every asset in AI Navigator has passed certification review. Metadata conforms to
                   the Enterprise Metadata Standard v3.0. Taxonomy bindings follow the corporate
                   classification hierarchy.
                 </p>

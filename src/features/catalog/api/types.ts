@@ -62,12 +62,12 @@ export interface BackendSourceRef {
 export interface BackendAssetVersion {
   id: string
   asset_id: string
-  version_tag: string
+  version: string
   is_current: boolean
-  changelog: string | null
+  change_summary: string | null
   released_at: string | null
   released_by: string | null
-  created_at: string
+  submission_id: string | null
 }
 
 export interface ApiAssetListResponse {
@@ -151,6 +151,41 @@ export interface ApiAssetTagsResponse {
   data: BackendAssetTag[]
 }
 
+// GET /api/catalog/search — query params
+export interface SearchParams {
+  q: string
+  publication_status?: BackendPublicationStatus
+  asset_kind?: string
+  compliance_tag?: string
+  domain?: string
+  page?: number
+  pageSize?: number
+}
+
+// GET /api/catalog/search — response
+export interface ApiSearchResponse {
+  data: BackendAsset[]
+  meta: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
+}
+
+// GET /api/catalog/assets/:id/similar — a single similar asset with score
+export interface BackendSimilarAsset extends BackendAsset {
+  // Heuristic similarity score (higher = more signals in common).
+  // TODO (Phase 2): replaced by pgvector cosine distance when embeddings exist.
+  similarity_score: number
+}
+
+// GET /api/catalog/assets/:id/similar — response
+export interface ApiSimilarAssetsResponse {
+  data: BackendSimilarAsset[]
+  assetId: string
+}
+
 // Query params for GET /api/catalog/assets
 export interface CatalogListParams {
   publication_status?: BackendPublicationStatus
@@ -166,6 +201,56 @@ export interface CatalogListParams {
   pageSize?: number
   sort?: 'name' | 'published_at' | 'updated_at'
   order?: 'asc' | 'desc'
+}
+
+// GET /api/catalog/assets/:id/summary — AI-generated asset summary
+export interface ApiAssetAiSummaryResponse {
+  assetId: string
+  businessSummary: string
+  technicalSummary: string
+  reuseGuidance: string
+  keyRisks: string[]
+  generatedAt: string
+  provider: 'openai' | 'stub'
+  model: string
+}
+
+// GET /api/catalog/assets/:id/recommendations — AI-recommended similar assets
+export interface ApiAssetRecommendation {
+  asset: BackendSimilarAsset
+  reason: string
+  similarityScore: number
+}
+
+export interface ApiAssetRecommendationsResponse {
+  data: ApiAssetRecommendation[]
+  assetId: string
+  generatedAt: string
+  provider: 'openai' | 'stub'
+}
+
+// GET /api/catalog/assets/:id/enrichment-suggestions — AI enrichment suggestions
+export interface ApiEnrichmentSuggestion<T> {
+  value: T
+  confidence: 'high' | 'medium' | 'low'
+  rationale: string
+}
+
+export interface ApiAssetEnrichmentSuggestionsResponse {
+  assetId: string
+  suggestedTags: ApiEnrichmentSuggestion<string>[]
+  suggestedClassifications: ApiEnrichmentSuggestion<{
+    scheme_code: string
+    code: string
+    label: string
+  }>[]
+  nfrClarifications: ApiEnrichmentSuggestion<{
+    field: string
+    currentValue: string | null
+    suggestedValue: string
+  }>[]
+  generatedAt: string
+  provider: 'openai' | 'stub'
 }
 
 // Query params for GET /api/catalog/taxonomy

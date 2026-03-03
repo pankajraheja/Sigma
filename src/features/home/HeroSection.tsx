@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { ArrowRight, BookOpen } from 'lucide-react'
 import Button from '../../components/ui/Button'
 
@@ -23,11 +24,13 @@ function CapabilityChip({ label, description }: CapabilityChipProps) {
 }
 
 const CAPABILITIES: CapabilityChipProps[] = [
-  { label: 'Discover',     description: 'Asset catalog and metadata registry' },
-  { label: 'Prototype',    description: 'Rapid low-code prototype builder' },
-  { label: 'Engineer',     description: 'Full-stack application builder' },
-  { label: 'Orchestrate',  description: 'FORGE agent pipeline orchestration' },
-  { label: 'Govern',       description: 'Taxonomy, access control, standards enforcement' },
+  { label: 'Discover',    description: 'AI Navigator — semantic search across certified enterprise assets' },
+  { label: 'Request',     description: 'Request Hub — governed intake and capability tracking' },
+  { label: 'Prototype',   description: 'Prototype Lab — rapid no-code and low-code experimentation' },
+  { label: 'Build',       description: 'Solution Studio — full-stack application engineering' },
+  { label: 'Orchestrate', description: 'Agent Forge — multi-agent AI pipeline orchestration' },
+  { label: 'Deliver',     description: 'Delivery Hub — certification and release progression to GA' },
+  { label: 'Govern',      description: 'Admin Control Center — taxonomy, access control, and shared standards' },
 ]
 
 // ── HeroSection ─────────────────────────────────────────────────────────────
@@ -46,13 +49,13 @@ export default function HeroSection() {
 
       {/* Right-side radial glow — adds depth without noise */}
       <div
-        className="absolute inset-y-0 right-0 w-2/3 bg-gradient-to-l from-primary-950/70 to-transparent"
+        className="absolute inset-y-0 right-0 w-2/3 bg-linear-to-l from-primary-950/70 to-transparent"
         aria-hidden="true"
       />
 
       {/* Bottom fade to page surface */}
       <div
-        className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-primary-950/40 to-transparent"
+        className="absolute bottom-0 inset-x-0 h-16 bg-linear-to-t from-primary-950/40 to-transparent"
         aria-hidden="true"
       />
 
@@ -63,7 +66,7 @@ export default function HeroSection() {
         <div className="flex items-center gap-3 mb-8" aria-hidden="true">
           <div className="h-px w-10 bg-ribbon" />
           <span className="text-ribbon text-[11px] font-semibold tracking-[0.18em] uppercase">
-            Enterprise Gateway
+            Enterprise AI Workspace
           </span>
         </div>
 
@@ -72,8 +75,8 @@ export default function HeroSection() {
           id="hero-heading"
           className="text-[2.75rem] leading-[1.1] font-bold tracking-tight text-ink-inverse max-w-xl mb-6"
         >
-          Build once.<br />
-          Govern everywhere.
+          Governed AI,<br />
+          end-to-end.
         </h1>
 
         {/* Divider accent */}
@@ -81,17 +84,20 @@ export default function HeroSection() {
 
         {/* Strategic subtext */}
         <p className="text-[15px] leading-relaxed text-ink-inverse/60 max-w-2xl mb-10">
-          A unified gateway to discover assets, prototype experiences, engineer
-          applications, orchestrate agents, and enforce enterprise standards through
-          shared taxonomy, metadata, and access control.
+          SigAI is the end-to-end platform for enterprise AI delivery. Discover certified assets,
+          request new capabilities, prototype and build solutions, orchestrate AI agents, and manage
+          the full lifecycle from intake to general availability — governed by shared taxonomy,
+          metadata standards, and access control at every step.
         </p>
 
         {/* CTAs */}
         <div className="flex flex-wrap items-center gap-3 mb-14">
-          <Button variant="inverse" size="lg">
-            Explore Platform
-            <ArrowRight size={15} strokeWidth={2} />
-          </Button>
+          <Link to="/catalog">
+            <Button variant="inverse" size="lg">
+              Explore AI Navigator
+              <ArrowRight size={15} strokeWidth={2} />
+            </Button>
+          </Link>
           <Button variant="ghost-inverse" size="lg">
             <BookOpen size={14} strokeWidth={1.75} />
             View Standards

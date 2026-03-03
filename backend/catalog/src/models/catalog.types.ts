@@ -68,12 +68,12 @@ export interface CatalogAsset {
 export interface AssetVersion {
   id: string;
   asset_id: string;
-  version_tag: string;
+  version: string;
   is_current: boolean;
-  changelog: string | null;
+  change_summary: string | null;
   released_at: string | null;
   released_by: string | null;
-  created_at: string;
+  submission_id: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +134,16 @@ export interface Tag {
   id: string;
   label: string;
   created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// catalog.assets — similarity-ranked view (extends CatalogAsset with score)
+// ---------------------------------------------------------------------------
+
+export interface SimilarAsset extends CatalogAsset {
+  // Total heuristic signal score. Higher = more signals in common.
+  // TODO (Phase 2): replaced by pgvector cosine distance when embeddings exist.
+  similarity_score: number;
 }
 
 // ---------------------------------------------------------------------------
