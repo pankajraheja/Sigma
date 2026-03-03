@@ -1,9 +1,9 @@
 import type { MainNavItem, UtilityLink, EnvironmentVariant } from '../types'
 
 export const APP_CONFIG = {
-  name: 'Enterprise Gateway',
+  name: 'SigAI Workspace',
   version: '0.1.0',
-  description: 'Centralised enterprise integration and routing gateway',
+  description: 'AI-powered enterprise workspace — build, govern, and orchestrate from a single shell',
 } as const
 
 export const ENVIRONMENT: { label: string; variant: EnvironmentVariant } = {

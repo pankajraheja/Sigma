@@ -1,12 +1,12 @@
 import AppProviders from './app/AppProviders'
 import AppShell from './app/AppShell'
-import HomePage from './features/home/HomePage'
+import AppRoutes from './app/AppRoutes'
 
 export default function App() {
   return (
     <AppProviders>
       <AppShell>
-        <HomePage />
+        <AppRoutes />
       </AppShell>
     </AppProviders>
   )
