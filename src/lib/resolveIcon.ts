@@ -16,6 +16,7 @@ import {
   Cpu,
   GitBranch,
   Settings,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -27,6 +28,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Cpu,
   GitBranch,
   Settings,
+  BarChart3,
 }
 
 /**

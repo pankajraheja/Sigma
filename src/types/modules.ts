@@ -11,6 +11,7 @@ export type ModuleId =
   | 'intake'
   | 'pipeline'
   | 'admin'
+  | 'vizier'
 
 export type ModuleStatus =
   | 'live'
@@ -19,10 +20,9 @@ export type ModuleStatus =
   | 'coming-soon'
 
 export type ModuleCategory =
-  | 'Discovery'
-  | 'Intake'
-  | 'Build'
-  | 'Orchestrate'
+  | 'Discover & Start'
+  | 'Build & Create'
+  | 'Deliver & Observe'
   | 'Govern'
   | 'Platform'
 

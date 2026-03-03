@@ -15,6 +15,7 @@ const AppBuilderPage      = lazy(() => import('../features/app-builder/AppBuilde
 const ForgePage           = lazy(() => import('../features/forge/ForgePage'))
 const PipelinePage        = lazy(() => import('../features/pipeline/PipelinePage'))
 const AdminPage           = lazy(() => import('../features/admin/AdminPage'))
+const VizierPage          = lazy(() => import('../features/vizier/VizierPage'))
 
 function RouteLoader() {
   return (
@@ -36,6 +37,7 @@ export default function AppRoutes() {
         <Route path="/forge/*"            element={<ForgePage />} />
         <Route path="/pipeline/*"         element={<PipelinePage />} />
         <Route path="/admin/*"            element={<AdminPage />} />
+        <Route path="/vizier/*"           element={<VizierPage />} />
       </Routes>
     </Suspense>
   )

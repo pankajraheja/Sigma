@@ -23,14 +23,14 @@ import type { PlatformModule } from '../types'
 
 export const PLATFORM_MODULES: PlatformModule[] = [
 
-  // ── Discovery ─────────────────────────────────────────────────────────────
+  // ── Discover & Start ──────────────────────────────────────────────────────
   {
     id:               'catalog',
     displayName:      'AI Navigator',
     shortDescription: 'AI-powered discovery for approved enterprise assets.',
     description:
       'AI Navigator is the semantic discovery layer for approved enterprise assets. Discover, understand, compare, and reuse certified AI models, datasets, APIs, applications, workflows, and prototypes across SigAI using semantic search and guided navigation.',
-    category:    'Discovery',
+    category:    'Discover & Start',
     status:      'live',
     basePath:    '/catalog',
     apiPrefix:   '/api/v1/catalog',
@@ -39,15 +39,13 @@ export const PLATFORM_MODULES: PlatformModule[] = [
     featured:            true,
     availableInLauncher: true,
   },
-
-  // ── Intake ────────────────────────────────────────────────────────────────
   {
     id:               'intake',
     displayName:      'Request Hub',
     shortDescription: 'Submit, track, and manage requests for new assets, solutions, and capabilities.',
     description:
       'Request Hub is the governed entry point for all new work across SigAI. Submit, track, and manage requests for new assets, solutions, and capabilities — with built-in routing, approval workflows, and full audit history.',
-    category:    'Intake',
+    category:    'Discover & Start',
     status:      'preview',
     basePath:    '/intake',
     apiPrefix:   '/api/v1/intake',
@@ -57,14 +55,14 @@ export const PLATFORM_MODULES: PlatformModule[] = [
     availableInLauncher: true,
   },
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ── Build & Create ────────────────────────────────────────────────────────
   {
     id:               'prototype-builder',
     displayName:      'Prototype Lab',
     shortDescription: 'Design and refine low-code or no-code prototypes for rapid experimentation.',
     description:
       'Prototype Lab is the rapid experimentation environment for SigAI. Design, iterate, and validate low-code or no-code prototypes before committing to full engineering investment — with governed asset references and stakeholder sharing built in.',
-    category:    'Build',
+    category:    'Build & Create',
     status:      'live',
     basePath:    '/prototype-builder',
     apiPrefix:   '/api/v1/prototypes',
@@ -74,29 +72,12 @@ export const PLATFORM_MODULES: PlatformModule[] = [
     availableInLauncher: true,
   },
   {
-    id:               'app-builder',
-    displayName:      'Solution Studio',
-    shortDescription: 'Build production-ready applications and engineering solutions.',
-    description:
-      'Solution Studio is the full-stack engineering workspace for SigAI. Build, scaffold, and ship production-ready applications and engineering solutions with governed templates, shared component libraries, and integrated deployment pipelines.',
-    category:    'Build',
-    status:      'beta',
-    basePath:    '/app-builder',
-    apiPrefix:   '/api/v1/apps',
-    iconName:    'Code2',
-    permissions: { roles: ['Editor', 'Admin'] },
-    featured:            false,
-    availableInLauncher: true,
-  },
-
-  // ── Orchestrate ───────────────────────────────────────────────────────────
-  {
     id:               'forge',
     displayName:      'Agent Forge',
     shortDescription: 'Create, orchestrate, and govern agents, skills, connectors, and workflows.',
     description:
       'Agent Forge is the multi-agent orchestration platform for SigAI. Create, configure, and govern AI agents, skills, connectors, and end-to-end workflows — with full traceability, approval gates, and enterprise policy enforcement at every step.',
-    category:    'Orchestrate',
+    category:    'Build & Create',
     status:      'beta',
     basePath:    '/forge',
     apiPrefix:   '/api/v1/forge',
@@ -107,17 +88,49 @@ export const PLATFORM_MODULES: PlatformModule[] = [
     navEmphasis:         true,
   },
   {
+    id:               'app-builder',
+    displayName:      'Solution Studio',
+    shortDescription: 'Build production-ready applications and engineering solutions.',
+    description:
+      'Solution Studio is the full-stack engineering workspace for SigAI. Build, scaffold, and ship production-ready applications and engineering solutions with governed templates, shared component libraries, and integrated deployment pipelines.',
+    category:    'Build & Create',
+    status:      'beta',
+    basePath:    '/app-builder',
+    apiPrefix:   '/api/v1/apps',
+    iconName:    'Code2',
+    permissions: { roles: ['Editor', 'Admin'] },
+    featured:            false,
+    availableInLauncher: true,
+  },
+
+  // ── Deliver & Observe ─────────────────────────────────────────────────────
+  {
     id:               'pipeline',
     displayName:      'Delivery Hub',
     shortDescription: 'Manage certification, automation, release progression, and promotion to GA.',
     description:
       'Delivery Hub manages the end-to-end release lifecycle for SigAI assets and solutions. Automate certification checks, coordinate release progression, and govern promotion gates from preview through to general availability.',
-    category:    'Orchestrate',
+    category:    'Deliver & Observe',
     status:      'preview',
     basePath:    '/pipeline',
     apiPrefix:   '/api/v1/pipeline',
     iconName:    'GitBranch',
     permissions: { roles: ['Editor', 'Admin'] },
+    featured:            false,
+    availableInLauncher: true,
+  },
+  {
+    id:               'vizier',
+    displayName:      'Vizier',
+    shortDescription: 'Governance, reporting, evaluation, and portfolio intelligence for the AI platform.',
+    description:
+      'Vizier is the governance and observability layer for SigAI. Track portfolio health, monitor evaluation outcomes, measure cost and usage trends, and generate compliance-ready reports across all AI assets, agents, and solutions in the enterprise.',
+    category:    'Deliver & Observe',
+    status:      'preview',
+    basePath:    '/vizier',
+    apiPrefix:   '/api/vizier',
+    iconName:    'BarChart3',
+    permissions: { roles: [] },
     featured:            false,
     availableInLauncher: true,
   },
@@ -142,9 +155,8 @@ export const PLATFORM_MODULES: PlatformModule[] = [
 
 // ── Category display order — controls sequence in nav, launcher, and groups ──
 export const MODULE_CATEGORY_ORDER = [
-  'Discovery',
-  'Intake',
-  'Build',
-  'Orchestrate',
+  'Discover & Start',
+  'Build & Create',
+  'Deliver & Observe',
   'Govern',
 ] as const

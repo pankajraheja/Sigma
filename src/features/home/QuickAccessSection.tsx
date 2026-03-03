@@ -7,21 +7,28 @@ import type { ModuleCategory } from '../../types'
 // ── Category accent colours ───────────────────────────────────────────────────
 
 const CATEGORY_ACCENT: Partial<Record<ModuleCategory, string>> = {
-  Discovery:   'border-l-primary-400',
-  Intake:      'border-l-info',
-  Build:       'border-l-warning',
-  Orchestrate: 'border-l-ribbon',
-  Govern:      'border-l-success',
+  'Discover & Start':  'border-l-primary-400',
+  'Build & Create':    'border-l-warning',
+  'Deliver & Observe': 'border-l-ribbon',
+  Govern:              'border-l-success',
 }
 
 // ── Category display labels — user-facing group names ─────────────────────────
 
 const CATEGORY_DISPLAY: Partial<Record<ModuleCategory, string>> = {
-  Discovery:   'Discover',
-  Intake:      'Request',
-  Build:       'Create & Build',
-  Orchestrate: 'Orchestrate & Deliver',
-  Govern:      'Govern',
+  'Discover & Start':  'Discover & Start',
+  'Build & Create':    'Build & Create',
+  'Deliver & Observe': 'Deliver & Observe',
+  Govern:              'Govern',
+}
+
+// ── Category subtitles — one-line description shown under each group heading ──
+
+const CATEGORY_SUBTITLE: Partial<Record<ModuleCategory, string>> = {
+  'Discover & Start':  'Find approved assets or initiate new work.',
+  'Build & Create':    'Prototype, orchestrate agents, and engineer production-ready solutions.',
+  'Deliver & Observe': 'Move work through governed delivery and analyse impact.',
+  Govern:              'Manage standards, taxonomy, access, and platform controls.',
 }
 
 // ── Derived data (module load time — no re-render needed) ─────────────────────
@@ -35,11 +42,17 @@ const totalLauncher   = categoryGroups.reduce((n, g) => n + g.modules.length, 0)
 function CategoryHeader({ category }: { category: ModuleCategory }) {
   const accentClass  = CATEGORY_ACCENT[category] ?? 'border-l-border-strong'
   const displayLabel = CATEGORY_DISPLAY[category] ?? category
+  const subtitle     = CATEGORY_SUBTITLE[category]
   return (
     <div className={`pl-3 border-l-2 ${accentClass} mb-4`}>
       <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-ink-faint">
         {displayLabel}
       </span>
+      {subtitle && (
+        <p className="text-[12px] text-ink-faint mt-0.5 normal-case tracking-normal">
+          {subtitle}
+        </p>
+      )}
     </div>
   )
 }
