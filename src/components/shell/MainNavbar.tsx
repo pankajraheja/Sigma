@@ -1,7 +1,21 @@
-import { APP_CONFIG, MAIN_NAV_ITEMS } from '../../config/app.config'
+import { APP_CONFIG } from '../../config/app.config'
+import { getNavModules } from '../../lib/moduleHelpers'
 import NavItem from './NavItem'
+import type { MainNavItem } from '../../types'
 
-// ── Brand mark ─────────────────────────────────────────────────────────────
+// ── Nav items derived from the registry ──────────────────────────────────────
+
+// Home is a shell link, not a module — kept static.
+const HOME_NAV_ITEM: MainNavItem = { label: 'Home', href: '/' }
+
+// All module nav links come from the registry. Order = PLATFORM_MODULES order.
+const MODULE_NAV_ITEMS: MainNavItem[] = getNavModules().map((m) => ({
+  label:    m.label,
+  href:     m.href,
+  emphasis: m.emphasis,
+}))
+
+// ── Brand mark ───────────────────────────────────────────────────────────────
 
 function BrandMark() {
   return (
@@ -29,7 +43,7 @@ function BrandMark() {
   )
 }
 
-// ── MainNavbar ─────────────────────────────────────────────────────────────
+// ── MainNavbar ───────────────────────────────────────────────────────────────
 
 interface MainNavbarProps {
   /** Slot for right-side controls (user avatar, notifications, etc.) */
@@ -44,10 +58,12 @@ export default function MainNavbar({ rightSlot }: MainNavbarProps) {
     >
       <BrandMark />
 
-      {/* Primary nav links */}
+      {/* Home + registry-driven module links */}
       <div className="flex items-stretch overflow-x-auto scrollbar-none ml-1">
-        {MAIN_NAV_ITEMS.map((item) => (
-          <NavItem key={item.label} item={item} variant="horizontal" />
+        <NavItem item={HOME_NAV_ITEM} variant="horizontal" />
+
+        {MODULE_NAV_ITEMS.map((item) => (
+          <NavItem key={item.href} item={item} variant="horizontal" />
         ))}
       </div>
 

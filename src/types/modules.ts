@@ -40,9 +40,16 @@ export interface ModulePermissions {
 export interface PlatformModule {
   /** Canonical ID — matches route segment and features/ folder name. */
   id: ModuleId
+  /**
+   * Human-readable display name shown in nav, cards, and headings.
+   * `id` serves as the canonical machine name.
+   */
   displayName: string
-  category: ModuleCategory
+  /** One-line summary for launcher cards, nav tooltips, and search results. */
+  shortDescription: string
+  /** Full description for module cards and detail views. */
   description: string
+  category: ModuleCategory
   status: ModuleStatus
   /** Root navigation path — drives router, nav links, and breadcrumbs. */
   basePath: string
@@ -55,4 +62,10 @@ export interface PlatformModule {
   iconName: string
   /** Access control placeholder — wire to AuthProvider when RBAC ships. */
   permissions: ModulePermissions
+  /** Show this module with visual prominence in the home-page quick-access section. */
+  featured: boolean
+  /** Include this module in the launcher grid on the home page. */
+  availableInLauncher: boolean
+  /** Apply emphasis styling (bold, accent colour) in the main navbar. */
+  navEmphasis?: boolean
 }

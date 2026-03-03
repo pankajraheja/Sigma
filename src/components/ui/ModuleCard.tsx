@@ -2,6 +2,7 @@ import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, CardBody, CardFooter } from './Card'
 import StatusBadge from './StatusBadge'
+import { resolveIcon } from '../../lib/resolveIcon'
 import type { PlatformModule } from '../../types'
 
 interface ModuleCardProps {
@@ -9,22 +10,37 @@ interface ModuleCardProps {
 }
 
 export default function ModuleCard({ module }: ModuleCardProps) {
+  const Icon = resolveIcon(module.iconName)
+
   return (
     <Card>
       <CardBody>
-        <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-ink-faint mb-3">
-          {module.category}
-        </p>
-
+        {/* Icon badge + category + status row */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <h3 className="text-[15px] font-semibold text-ink leading-snug">
-            {module.displayName}
-          </h3>
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary-50 border border-primary-100 shrink-0">
+              <Icon
+                size={15}
+                strokeWidth={1.75}
+                className="text-primary-600"
+                aria-hidden="true"
+              />
+            </div>
+            <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-ink-faint">
+              {module.category}
+            </p>
+          </div>
           <StatusBadge status={module.status} />
         </div>
 
+        {/* Module name */}
+        <h3 className="text-[15px] font-semibold text-ink leading-snug mb-2">
+          {module.displayName}
+        </h3>
+
+        {/* Short description — concise, fits launcher card height */}
         <p className="text-[13px] leading-relaxed text-ink-muted flex-1">
-          {module.description}
+          {module.shortDescription}
         </p>
       </CardBody>
 

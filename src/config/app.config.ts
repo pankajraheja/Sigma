@@ -1,4 +1,4 @@
-import type { MainNavItem, UtilityLink, EnvironmentVariant } from '../types'
+import type { UtilityLink, EnvironmentVariant } from '../types'
 
 export const APP_CONFIG = {
   name: 'SigAI Workspace',
@@ -11,16 +11,8 @@ export const ENVIRONMENT: { label: string; variant: EnvironmentVariant } = {
   variant: 'production',
 }
 
-export const MAIN_NAV_ITEMS: MainNavItem[] = [
-  { label: 'Home',                href: '/' },
-  { label: 'Catalog',             href: '/catalog' },
-  { label: 'Intake',              href: '/intake' },
-  { label: 'Prototype Builder',   href: '/prototype-builder' },
-  { label: 'Application Builder', href: '/app-builder' },
-  { label: 'FORGE',               href: '/forge',    emphasis: true },
-  { label: 'Pipeline',            href: '/pipeline' },
-  { label: 'Admin',               href: '/admin' },
-]
+// Navigation is now driven by the module registry (registry/modules.ts).
+// See lib/moduleHelpers.ts → getNavModules() for the nav items.
 
 export const UTILITY_LINKS: UtilityLink[] = [
   { label: 'Support',       href: '#' },
