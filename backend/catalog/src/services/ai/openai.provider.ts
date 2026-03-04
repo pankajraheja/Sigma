@@ -16,6 +16,7 @@ import type {
   AiSummaryResult,
   RecommendationReason,
   EnrichmentResult,
+  ChatCompletionOptions,
 } from './ai.provider.js';
 
 export interface OpenAiProviderConfig {
@@ -235,5 +236,21 @@ Suggest only additions that are clearly justified. Return empty arrays if nothin
         ? parsed.nfrClarifications
         : [],
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // chatCompletion — free-form chat for Sigma Chat
+  // -------------------------------------------------------------------------
+
+  async chatCompletion(options: ChatCompletionOptions): Promise<string> {
+    const response = await this.client.chat.completions.create({
+      model: this.modelName,
+      messages: options.messages,
+      temperature: options.temperature ?? 0.3,
+      max_tokens: options.maxTokens ?? 1200,
+      ...(options.jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
+    });
+
+    return response.choices[0]?.message?.content ?? '';
   }
 }

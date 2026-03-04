@@ -13,6 +13,7 @@ import type {
   AiSummaryResult,
   RecommendationReason,
   EnrichmentResult,
+  ChatCompletionOptions,
 } from './ai.provider.js';
 
 export class StubAiProvider implements AiProvider {
@@ -223,6 +224,37 @@ export class StubAiProvider implements AiProvider {
     }
 
     return { suggestedTags, suggestedClassifications, nfrClarifications };
+  }
+
+  // -------------------------------------------------------------------------
+  // chatCompletion — stub for Sigma Chat (returns grounding-aware mock)
+  // -------------------------------------------------------------------------
+
+  async chatCompletion(options: ChatCompletionOptions): Promise<string> {
+    // Extract grounding context from the system message (if any)
+    const system = options.messages.find((m) => m.role === 'system')?.content ?? '';
+    const user = options.messages.filter((m) => m.role === 'user').pop()?.content ?? '';
+
+    // If JSON mode, return a structured stub response
+    if (options.jsonMode) {
+      return JSON.stringify({
+        answer: `Based on the catalog data, here is what I found for your question: "${user.slice(0, 80)}". ` +
+          'The AI Navigator catalog contains approved enterprise assets across multiple domains. ' +
+          'I can help you search, filter, and compare assets. Try asking about specific asset kinds, domains, or compliance requirements.',
+        references: [],
+        suggestions: [
+          'Show all GA assets',
+          'Find pipelines with EU data residency',
+          'What assets contain PII?',
+        ],
+      });
+    }
+
+    return (
+      `Based on the catalog data, here is what I found for your question: "${user.slice(0, 80)}". ` +
+      'The AI Navigator catalog contains approved enterprise assets across multiple domains. ' +
+      'I can help you search, filter, and compare assets.'
+    );
   }
 }
 

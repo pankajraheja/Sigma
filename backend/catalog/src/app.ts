@@ -9,9 +9,13 @@ import { config } from './config/index.js';
 import { requestLogger } from './middleware/logger.middleware.js';
 import { errorHandler } from './middleware/error.middleware.js';
 import { registerRoutes } from './routes/index.js';
+import { initializeChatModule } from './services/chat/index.js';
 
 export function createApp(): express.Express {
   const app = express();
+
+  // ── Sigma Chat — register skills and grounding providers ────────────────
+  initializeChatModule();
 
   // -------------------------------------------------------------------------
   // Security headers
@@ -24,7 +28,7 @@ export function createApp(): express.Express {
   app.use(
     cors({
       origin: config.cors.origins,
-      methods: ['GET', 'OPTIONS'],
+      methods: ['GET', 'POST', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     }),
   );

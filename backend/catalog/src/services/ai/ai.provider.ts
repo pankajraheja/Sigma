@@ -67,6 +67,25 @@ export interface EnrichmentResult {
 }
 
 // ---------------------------------------------------------------------------
+// Chat completion types
+// ---------------------------------------------------------------------------
+
+export interface ChatCompletionMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatCompletionOptions {
+  messages: ChatCompletionMessage[];
+  /** Temperature 0–1. Defaults to 0.3. */
+  temperature?: number;
+  /** Maximum reply tokens. Defaults to 1200. */
+  maxTokens?: number;
+  /** When true, the response is expected to be valid JSON. */
+  jsonMode?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // AiProvider interface — implemented by OpenAiProvider and StubAiProvider
 // ---------------------------------------------------------------------------
 
@@ -85,6 +104,9 @@ export interface AiProvider {
     asset: CatalogAsset,
     ctx: AssetContext,
   ): Promise<EnrichmentResult>;
+
+  /** Free-form chat completion for Sigma Chat. */
+  chatCompletion(options: ChatCompletionOptions): Promise<string>;
 }
 
 // ---------------------------------------------------------------------------

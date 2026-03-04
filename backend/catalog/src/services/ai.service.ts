@@ -50,6 +50,14 @@ const fallbackProvider: AiProvider | null =
 const stubProvider = new StubAiProvider();
 
 // ---------------------------------------------------------------------------
+// Expose the active AI provider for Sigma Chat (and future consumers)
+// ---------------------------------------------------------------------------
+
+export function getAiProvider(): AiProvider {
+  return provider;
+}
+
+// ---------------------------------------------------------------------------
 // TTL cache types
 // ---------------------------------------------------------------------------
 

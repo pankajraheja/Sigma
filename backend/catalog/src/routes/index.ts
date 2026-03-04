@@ -9,6 +9,7 @@ import { assetsRouter } from './assets.routes.js';
 import { searchRouter } from './search.routes.js';
 import { taxonomyRouter, tagsRouter } from './taxonomy.routes.js';
 import { submissionsRouter } from './submissions.routes.js';
+import { chatRouter } from './chat.routes.js';
 
 export function registerRoutes(app: Express): void {
   const prefix = config.apiPrefix; // default: /api/catalog
@@ -19,6 +20,9 @@ export function registerRoutes(app: Express): void {
   app.use(`${prefix}/taxonomy`, taxonomyRouter);
   app.use(`${prefix}/tags`, tagsRouter);
   app.use(`${prefix}/submissions`, submissionsRouter);
+
+  // ── Sigma Chat — cross-module chat endpoint ────────────────────────────
+  app.use('/api/chat', chatRouter);
 
   // 404 for any unmatched route under the prefix
   app.use(`${prefix}/*`, (_req, res) => {
@@ -35,6 +39,8 @@ export function registerRoutes(app: Express): void {
 // ---------------------------------------------------------------------------
 
 export const routeSummary = (prefix: string) => [
+  `POST /api/chat/query`,
+  `GET  /api/chat/skills`,
   `GET  ${prefix}/health`,
   `GET  ${prefix}/assets`,
   `GET  ${prefix}/assets/:id`,

@@ -8,3 +8,13 @@ export interface AppShellProps { children: React.ReactNode }
 
 export type { ModuleId, ModuleStatus, ModuleCategory, PlatformModule } from './modules'
 export type { StandardDomain, EnterpriseStandard } from './standards'
+export type {
+  GroundingStrategy,
+  SigmaChatSkill,
+  ChatRole,
+  ChatContext,
+  ChatQueryRequest,
+  ChatReference,
+  ChatQueryResponse,
+  ChatDisplayMessage,
+} from './chat'
