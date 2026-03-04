@@ -18,15 +18,15 @@ export const config = {
     host: optional('DB_HOST', 'localhost'),
     port: parseInt(optional('DB_PORT', '5432'), 10),
     name: optional('DB_NAME', 'sigai'),
-    user: optional('DB_USER', 'sigai'),
-    password: process.env['DB_PASSWORD'] ?? 'pgadmin',
+    user: optional('DB_USER', 'postgres'),
+    password: process.env['DB_PASSWORD'] ?? 'postgres',
     poolMin: parseInt(optional('DB_POOL_MIN', '2'), 10),
     poolMax: parseInt(optional('DB_POOL_MAX', '10'), 10),
     ssl: optional('DB_SSL', 'false') === 'true',
   },
 
   cors: {
-    origins: optional('CORS_ORIGINS', 'http://localhost:5173').split(','),
+    origins: optional('CORS_ORIGINS', 'http://localhost:5173,http://localhost:5174').split(','),
   },
 
   ai: {

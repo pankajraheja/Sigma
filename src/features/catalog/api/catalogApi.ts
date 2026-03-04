@@ -26,7 +26,7 @@ import type {
 
 const BASE =
   (import.meta.env['VITE_CATALOG_API_URL'] as string | undefined) ??
-  'http://localhost:3001/api/catalog'
+  'http://localhost:3002/api/catalog'
 
 export class ApiError extends Error {
   constructor(
