@@ -3,20 +3,29 @@
 //
 // Flow:
 //   1. Resolve skill from skillKey
-//   2. Get grounding provider for the skill's strategy
-//   3. Retrieve grounding context for the user's message
-//   4. Build system prompt + grounded context
-//   5. Call the LLM via the shared AiProvider and return structured response
+//   2. Interpret the query → structured search plan (QueryInterpretation)
+//   3. Retrieve grounding context using the plan (semantic / structured / hybrid / detail / fallback)
+//   4. Build system prompt + grounded context payload
+//   5. Call the LLM via the shared AiProvider
+//   6. Return structured response with answer, references, suggestions, _meta
+//
+// The query interpreter runs BEFORE retrieval. It detects intent, scope,
+// filters, keywords, and retrieval mode. The grounding provider consumes
+// the plan directly instead of re-classifying the query.
 // ---------------------------------------------------------------------------
 
 import { getChatSkill } from './skill.registry.js';
 import { getGroundingProvider } from './grounding.provider.js';
+import { interpretQuery } from './query-interpreter.js';
 import { getAiProvider } from '../ai.service.js';
 import type {
   ChatQueryRequest,
   ChatQueryResponse,
   ChatReference,
   GroundingResult,
+  GroundingPayload,
+  RetrievalMetadata,
+  QueryInterpretation,
 } from '../../models/chat.types.js';
 
 // ---------------------------------------------------------------------------
@@ -29,22 +38,49 @@ export async function handleChatQuery(body: ChatQueryRequest): Promise<ChatQuery
     return errorResponse(`Unknown skill: ${body.skillKey}`);
   }
 
-  // 1. Retrieve grounding context
+  // ── Step 1: Interpret the query → structured search plan ────────────────
+  const plan = interpretQuery(body.message, body.context);
+
+  // ── Step 2: Retrieve grounding context using the plan ─────────────────
   const groundingProvider = getGroundingProvider(skill.groundingStrategy);
-  let groundingResults: GroundingResult[] = [];
+  let groundingPayload: GroundingPayload = {
+    results: [],
+    metadata: {
+      retrievalModeUsed: 'none',
+      resultCount: 0,
+      fallbackUsed: false,
+      groundingProvider: 'none',
+    },
+  };
 
   if (groundingProvider) {
-    groundingResults = await groundingProvider.retrieve(
+    groundingPayload = await groundingProvider.retrieve(
       body.message,
       body.context,
+      plan,
       6,
     );
+
+    console.info(
+      `[ChatService] Retrieval complete: mode=${groundingPayload.metadata.retrievalModeUsed}` +
+      ` | results=${groundingPayload.metadata.resultCount}` +
+      ` | fallback=${groundingPayload.metadata.fallbackUsed}` +
+      ` | intent=${plan.intent} | scope=${plan.scope}` +
+      ` | time=${groundingPayload.metadata.retrievalTimeMs ?? '?'}ms`,
+    );
+  } else {
+    console.warn(`[ChatService] No grounding provider for strategy: ${skill.groundingStrategy}`);
   }
 
-  // 2. Build grounding block for system prompt
+  const { results: groundingResults, metadata: retrievalMeta } = groundingPayload;
+
+  // ── Step 3: Build grounding block for system prompt ───────────────────
   const groundingText = groundingResults.length
     ? [
         '\n--- Relevant catalog assets (grounding context) ---',
+        `[Retrieval mode: ${retrievalMeta.retrievalModeUsed} | ${retrievalMeta.resultCount} results` +
+        `${retrievalMeta.fallbackUsed ? ' | fallback used' : ''}` +
+        ` | intent: ${plan.intent} | scope: ${plan.scope}]`,
         ...groundingResults.map(
           (r, i) =>
             `[${i + 1}] id=${r.sourceId} | ${r.title} | ${r.snippet} | link=${r.link ?? 'n/a'}`,
@@ -53,7 +89,7 @@ export async function handleChatQuery(body: ChatQueryRequest): Promise<ChatQuery
       ].join('\n')
     : '\nNo relevant assets found in the catalog for this query.\n';
 
-  // 3. Build reference list from grounding
+  // ── Step 4: Build reference list from grounding ───────────────────────
   const references: ChatReference[] = groundingResults.map((r) => ({
     id: r.sourceId,
     name: r.title,
@@ -72,7 +108,7 @@ IMPORTANT INSTRUCTIONS:
 - "suggestions" is an array of 2-4 follow-up question strings the user might want to ask next.
 - Do NOT include markdown code fences around the JSON.`;
 
-  // 4. Call the LLM
+  // ── Step 5: Call the LLM (only AFTER retrieval) ───────────────────────
   const ai = getAiProvider();
   try {
     const raw = await ai.chatCompletion({
@@ -85,7 +121,7 @@ IMPORTANT INSTRUCTIONS:
       jsonMode: true,
     });
 
-    // 5. Parse the structured response
+    // ── Step 6: Parse the structured response ─────────────────────────
     const parsed = safeParseJson(raw);
 
     return {
@@ -95,6 +131,7 @@ IMPORTANT INSTRUCTIONS:
           ? parsed.references
           : references,
       suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : defaultSuggestions(body),
+      _meta: retrievalMeta,
     };
   } catch (err) {
     console.error('[ChatService] LLM call failed, returning grounding-only response:', err);
@@ -104,6 +141,7 @@ IMPORTANT INSTRUCTIONS:
         'I found some relevant catalog assets but had trouble generating a full answer. Here are the results:',
       references,
       suggestions: defaultSuggestions(body),
+      _meta: retrievalMeta,
     };
   }
 }

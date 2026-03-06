@@ -121,9 +121,31 @@ export interface PublicationPromotion {
 export interface TaxonomyTerm {
   id: string;
   scheme_code: string;
+  scheme_id: string | null;
   code: string;
   label: string;
+  description: string | null;
+  parent_term_id: string | null;
+  sort_order: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// metadata.concept_schemes
+// ---------------------------------------------------------------------------
+
+export interface ConceptScheme {
+  id: string;
+  code: string;
+  label: string;
+  description: string | null;
+  is_hierarchical: boolean;
+  is_locked: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // ---------------------------------------------------------------------------

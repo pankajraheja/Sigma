@@ -10,6 +10,7 @@ import { searchRouter } from './search.routes.js';
 import { taxonomyRouter, tagsRouter } from './taxonomy.routes.js';
 import { submissionsRouter } from './submissions.routes.js';
 import { chatRouter } from './chat.routes.js';
+import { metadataTaxonomyRouter } from './metadata-taxonomy.routes.js';
 
 export function registerRoutes(app: Express): void {
   const prefix = config.apiPrefix; // default: /api/catalog
@@ -23,6 +24,9 @@ export function registerRoutes(app: Express): void {
 
   // ── Sigma Chat — cross-module chat endpoint ────────────────────────────
   app.use('/api/chat', chatRouter);
+
+  // ── Metadata Taxonomy (read-only, 4-table schema) ──────────────────────
+  app.use('/api/metadata/taxonomy', metadataTaxonomyRouter);
 
   // 404 for any unmatched route under the prefix
   app.use(`${prefix}/*`, (_req, res) => {
@@ -56,5 +60,18 @@ export const routeSummary = (prefix: string) => [
   `GET  ${prefix}/tags`,
   `GET  ${prefix}/taxonomy`,
   `GET  ${prefix}/taxonomy/schemes`,
+  `GET  ${prefix}/taxonomy/concept-schemes`,
+  `POST ${prefix}/taxonomy/concept-schemes`,
+  `PTCH ${prefix}/taxonomy/concept-schemes/:code`,
+  `GET  ${prefix}/taxonomy/terms/:id`,
+  `POST ${prefix}/taxonomy/terms`,
+  `PTCH ${prefix}/taxonomy/terms/:id`,
+  `DEL  ${prefix}/taxonomy/terms/:id`,
   `GET  ${prefix}/submissions/:id/published-asset`,
+  // metadata taxonomy (read-only)
+  `GET  /api/metadata/taxonomy/schemes`,
+  `GET  /api/metadata/taxonomy/schemes/:schemeKey`,
+  `GET  /api/metadata/taxonomy/schemes/:schemeKey/buckets`,
+  `GET  /api/metadata/taxonomy/schemes/:schemeKey/buckets/:bucketKey/terms`,
+  `GET  /api/metadata/taxonomy/terms/search`,
 ];

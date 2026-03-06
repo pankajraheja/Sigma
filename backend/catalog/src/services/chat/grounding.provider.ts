@@ -10,13 +10,19 @@
 // metadata (mode used, result count, fallback status) for observability.
 // ---------------------------------------------------------------------------
 
-import type { ChatContext, GroundingResult, GroundingPayload } from '../../models/chat.types.js';
+import type {
+  ChatContext,
+  GroundingResult,
+  GroundingPayload,
+  QueryInterpretation,
+} from '../../models/chat.types.js';
 
 /**
  * GroundingProvider — interface every module must implement to participate
  * in Sigma Chat grounding. The chat orchestrator calls `retrieve()` with
- * the latest user message and page context, and expects ranked results
- * bundled with retrieval metadata.
+ * the user message, page context, and a pre-computed search plan produced
+ * by the query interpreter. Providers consume the plan directly rather
+ * than re-classifying the query internally.
  */
 export interface GroundingProvider {
   /** Unique key — matches GroundingStrategy (e.g. 'catalog', 'requests'). */
@@ -27,12 +33,14 @@ export interface GroundingProvider {
    *
    * @param query      - the latest user message text
    * @param context    - ambient page context (page, entityId, filters)
+   * @param plan       - structured search plan from the query interpreter
    * @param maxResults - maximum number of results to return
    * @returns GroundingPayload with ranked results and retrieval metadata
    */
   retrieve(
     query: string,
     context: ChatContext,
+    plan: QueryInterpretation,
     maxResults?: number,
   ): Promise<GroundingPayload>;
 }

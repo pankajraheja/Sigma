@@ -4,7 +4,7 @@
 // API contract:
 //   POST /api/chat/query
 //   Request  → ChatQueryRequest  { skillKey, moduleKey, message, context }
-//   Response → ChatQueryResponse { answer, references[], suggestions[] }
+//   Response → ChatQueryResponse { answer, references[], suggestions[], _meta? }
 // ---------------------------------------------------------------------------
 
 import type { ModuleId } from './modules'
@@ -85,6 +85,19 @@ export interface ChatReference {
   href: string
 }
 
+/**
+ * Internal retrieval metadata — returned by the backend for
+ * debugging / logging. Not intended for end-user display.
+ */
+export interface RetrievalMetadata {
+  retrievalModeUsed: string
+  resultCount: number
+  fallbackUsed: boolean
+  initialModeAttempted?: string
+  retrievalTimeMs?: number
+  groundingProvider?: string
+}
+
 export interface ChatQueryResponse {
   /** The LLM-generated answer in markdown */
   answer: string
@@ -92,6 +105,8 @@ export interface ChatQueryResponse {
   references: ChatReference[]
   /** Follow-up prompts the user can click */
   suggestions: string[]
+  /** Internal debug / logging metadata — not for end-user display */
+  _meta?: RetrievalMetadata
 }
 
 // ── Display-level message (internal to the chat UI, not sent to the API) ────
@@ -107,4 +122,6 @@ export interface ChatDisplayMessage {
   references?: ChatReference[]
   /** Follow-up suggestions attached to this assistant turn */
   suggestions?: string[]
+  /** Retrieval metadata for this assistant turn (debug only) */
+  _meta?: RetrievalMetadata
 }

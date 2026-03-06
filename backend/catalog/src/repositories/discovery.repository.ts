@@ -113,6 +113,84 @@ export const discoveryRepository = {
   },
 
   // -------------------------------------------------------------------------
+  // findFiltered — structured column-filter search (no full-text query).
+  //
+  // Used by Sigma Chat structured retrieval and fallback when the user's
+  // intent maps to specific field filters rather than keyword search, or
+  // when we need a "get latest assets" query without a text term.
+  // -------------------------------------------------------------------------
+  async findFiltered(rawQuery: {
+    asset_kind?: string;
+    domain?: string;
+    publication_status?: string;
+    compliance_tag?: string;
+    data_residency?: string;
+    contains_pii?: string;
+    pageSize?: number;
+  }): Promise<SearchPage> {
+    const pageSize = rawQuery.pageSize ?? 10;
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    // Default: only discoverable assets
+    if (rawQuery.publication_status) {
+      conditions.push(`a.publication_status = $${idx++}`);
+      params.push(rawQuery.publication_status);
+    } else {
+      conditions.push(`a.publication_status IN ('ga', 'preview')`);
+    }
+
+    if (rawQuery.asset_kind) {
+      conditions.push(`a.asset_kind = $${idx++}`);
+      params.push(rawQuery.asset_kind);
+    }
+    if (rawQuery.domain) {
+      conditions.push(`a.domain = $${idx++}`);
+      params.push(rawQuery.domain);
+    }
+    if (rawQuery.compliance_tag) {
+      conditions.push(`$${idx++} = ANY(a.compliance_tags)`);
+      params.push(rawQuery.compliance_tag);
+    }
+    if (rawQuery.data_residency) {
+      conditions.push(`a.data_residency = $${idx++}`);
+      params.push(rawQuery.data_residency);
+    }
+    if (rawQuery.contains_pii === 'true' || rawQuery.contains_pii === 'yes') {
+      conditions.push(`a.contains_pii = true`);
+    } else if (rawQuery.contains_pii === 'false' || rawQuery.contains_pii === 'no') {
+      conditions.push(`a.contains_pii = false`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT a.*
+      FROM catalog.assets a
+      ${where}
+      ORDER BY a.updated_at DESC
+      LIMIT $${idx++}
+    `;
+    params.push(pageSize);
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM catalog.assets a
+      ${where}
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      db.query<CatalogAsset>(sql, params),
+      db.query<{ total: number }>(countSql, params.slice(0, -1)),
+    ]);
+
+    const total = countResult.rows[0]?.total ?? 0;
+    return { assets: dataResult.rows, total, page: 1, pageSize };
+  },
+
+  // -------------------------------------------------------------------------
   // Heuristic similarity scoring for "Similar Assets".
   //
   // Signal weights (higher = stronger relevance signal):

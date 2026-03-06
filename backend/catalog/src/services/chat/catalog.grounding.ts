@@ -1,48 +1,33 @@
 // ---------------------------------------------------------------------------
 // Catalog Grounding Provider — retrieves context from catalog assets
 //
-// Strategies:
-//   1. Detail page (entityId present) → fetch the asset + similar assets
-//   2. Discovery page (search / filters) → full-text search with filters
-//   3. Fallback when search returns nothing → fetch latest GA assets
+// Consumes a QueryInterpretation search plan produced by the query
+// interpreter. The plan determines scope, intent, retrievalMode, filters,
+// and keywords — this provider simply executes the right retrieval strategy.
 //
-// Because the user's message is often a natural-language sentence rather
-// than a keyword query, we extract meaningful terms before searching.
+// Retrieval modes:
+//   1. detail     — entityId present → fetch asset by ID + similar assets
+//   2. semantic   — NL / exploratory query → keyword-extracted full-text search
+//   3. structured — filter-like / exact query → direct DB filter query
+//   4. hybrid     — filters + text → column-filtered full-text search
+//   5. fallback   — primary search returned nothing → latest GA assets
 // ---------------------------------------------------------------------------
 
 import type { GroundingProvider } from './grounding.provider.js';
-import type { ChatContext, GroundingResult } from '../../models/chat.types.js';
+import type {
+  ChatContext,
+  GroundingResult,
+  GroundingPayload,
+  RetrievalMode,
+  RetrievalMetadata,
+  QueryInterpretation,
+} from '../../models/chat.types.js';
+import { extractKeywords } from './query-interpreter.js';
 import { discoveryRepository } from '../../repositories/discovery.repository.js';
 import { assetRepository } from '../../repositories/asset.repository.js';
 import type { CatalogAsset } from '../../models/catalog.types.js';
 
-// Stop words to strip from natural-language queries before search
-const STOP_WORDS = new Set([
-  'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-  'should', 'may', 'might', 'shall', 'can', 'need', 'must',
-  'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'she', 'it', 'they',
-  'them', 'his', 'her', 'its', 'their',
-  'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom',
-  'show', 'find', 'list', 'get', 'give', 'tell', 'search', 'look',
-  'for', 'of', 'in', 'on', 'at', 'to', 'from', 'with', 'by', 'about',
-  'all', 'any', 'some', 'each', 'every', 'both', 'no', 'not',
-  'and', 'or', 'but', 'if', 'so', 'than', 'too', 'very',
-  'how', 'why', 'when', 'where', 'please', 'help', 'want', 'like',
-]);
-
-/**
- * Extract meaningful search terms from a natural-language query.
- * Falls back to the original query if nothing remains.
- */
-function extractKeywords(query: string): string {
-  const words = query
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .split(/\s+/)
-    .filter((w) => w.length > 1 && !STOP_WORDS.has(w));
-  return words.length > 0 ? words.join(' ') : query.trim();
-}
+// ── Asset → GroundingResult converter ───────────────────────────────────
 
 function assetToGrounding(asset: CatalogAsset, score = 0.8): GroundingResult {
   return {
@@ -68,77 +53,249 @@ function assetToGrounding(asset: CatalogAsset, score = 0.8): GroundingResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Retrieval implementations
+// ---------------------------------------------------------------------------
+
+/** Strategy: detail — fetch asset by ID + similar assets. */
+async function retrieveByDetail(
+  entityId: string,
+  maxResults: number,
+): Promise<GroundingResult[]> {
+  const [asset, similar] = await Promise.all([
+    assetRepository.findById(entityId),
+    discoveryRepository.findSimilar(entityId, maxResults - 1),
+  ]);
+
+  const results: GroundingResult[] = [];
+  if (asset) results.push(assetToGrounding(asset, 1.0));
+  for (const sim of similar) {
+    results.push(assetToGrounding(sim, sim.similarity_score / 10));
+  }
+  return results.slice(0, maxResults);
+}
+
+/** Strategy: semantic — keyword-extracted full-text search. */
+async function retrieveSemantic(
+  query: string,
+  planKeywords: string,
+  context: ChatContext,
+  maxResults: number,
+): Promise<GroundingResult[]> {
+  // Prefer keywords from the interpreter; fall back to raw extraction
+  const keywords = planKeywords || extractKeywords(query);
+
+  const searchParams: Record<string, unknown> = {
+    q: keywords,
+    pageSize: maxResults,
+  };
+
+  // Forward any active page-level filters
+  if (context.filters) {
+    for (const [key, value] of Object.entries(context.filters)) {
+      if (value !== undefined && value !== '' && key !== 'q') {
+        searchParams[key] = value;
+      }
+    }
+  }
+
+  const searchResults = await discoveryRepository.search(
+    searchParams as Parameters<typeof discoveryRepository.search>[0],
+  );
+
+  return searchResults.assets.map((a) => assetToGrounding(a));
+}
+
+/**
+ * Strategy: hybrid — full-text search constrained by column-level filters.
+ * Combines the best of semantic (keyword relevance) and structured (filter
+ * precision) when the user provides both NL text and filterable entities.
+ */
+async function retrieveHybrid(
+  query: string,
+  filters: Record<string, string>,
+  planKeywords: string,
+  context: ChatContext,
+  maxResults: number,
+): Promise<GroundingResult[]> {
+  const keywords = planKeywords || extractKeywords(query);
+
+  const searchParams: Record<string, unknown> = {
+    q: keywords,
+    pageSize: maxResults,
+  };
+
+  // Apply structured filters from the plan
+  const knownKeys = ['asset_kind', 'domain', 'publication_status', 'compliance_tag', 'data_residency', 'contains_pii'];
+  for (const key of knownKeys) {
+    if (filters[key]) searchParams[key] = filters[key];
+  }
+
+  // Layer in page-level ambient filters
+  if (context.filters) {
+    for (const [key, value] of Object.entries(context.filters)) {
+      if (value !== undefined && value !== '' && key !== 'q') {
+        searchParams[key] ??= value;
+      }
+    }
+  }
+
+  const searchResults = await discoveryRepository.search(
+    searchParams as Parameters<typeof discoveryRepository.search>[0],
+  );
+
+  return searchResults.assets.map((a) => assetToGrounding(a, 0.85));
+}
+
+/** Strategy: structured — direct DB column filters parsed from the query. */
+async function retrieveStructured(
+  filters: Record<string, string>,
+  context: ChatContext,
+  maxResults: number,
+): Promise<GroundingResult[]> {
+  // Use findFiltered() — pure column-level filtering, no text search needed.
+  const filterParams: Record<string, string> = { pageSize: String(maxResults) };
+
+  // Apply parsed structured filters
+  const knownKeys = ['asset_kind', 'domain', 'publication_status', 'compliance_tag', 'data_residency', 'contains_pii'];
+  for (const key of knownKeys) {
+    if (filters[key]) filterParams[key] = filters[key];
+  }
+
+  // Also layer in page-level ambient filters
+  if (context.filters) {
+    for (const [key, value] of Object.entries(context.filters)) {
+      if (value !== undefined && value !== '' && key !== 'q') {
+        filterParams[key] ??= String(value);
+      }
+    }
+  }
+
+  const searchResults = await discoveryRepository.findFiltered({
+    ...filterParams,
+    pageSize: maxResults,
+  });
+
+  return searchResults.assets.map((a) => assetToGrounding(a, 0.9));
+}
+
+/** Fallback: latest GA assets when all other strategies return nothing. */
+async function retrieveFallback(maxResults: number): Promise<GroundingResult[]> {
+  // Use findFiltered() with no filters — returns latest GA/preview assets.
+  const fallback = await discoveryRepository.findFiltered({ pageSize: maxResults });
+  if (fallback.assets.length === 0) return [];
+  return fallback.assets.map((a) => assetToGrounding(a, 0.5));
+}
+
+// ---------------------------------------------------------------------------
+// CatalogGroundingProvider — main class
+// ---------------------------------------------------------------------------
+
 export class CatalogGroundingProvider implements GroundingProvider {
   readonly key = 'catalog';
 
   async retrieve(
     query: string,
     context: ChatContext,
+    plan: QueryInterpretation,
     maxResults = 6,
-  ): Promise<GroundingResult[]> {
+  ): Promise<GroundingPayload> {
+    const startTime = Date.now();
+
     try {
-      const results: GroundingResult[] = [];
-
-      // ── Strategy 1: detail page — fetch the asset itself + similar ──
-      if (context.entityId) {
-        const [asset, similar] = await Promise.all([
-          assetRepository.findById(context.entityId),
-          discoveryRepository.findSimilar(context.entityId, maxResults - 1),
-        ]);
-
-        if (asset) {
-          results.push(assetToGrounding(asset, 1.0));
-        }
-
-        for (const sim of similar) {
-          results.push(assetToGrounding(sim, sim.similarity_score / 10));
-        }
-
-        return results.slice(0, maxResults);
-      }
-
-      // ── Strategy 2: keyword search ─────────────────────────────────
-      const keywords = extractKeywords(query);
-
-      const searchParams: Record<string, unknown> = {
-        q: keywords,
-        pageSize: maxResults,
-      };
-
-      // Forward any active filters from the page
-      if (context.filters) {
-        for (const [key, value] of Object.entries(context.filters)) {
-          if (value !== undefined && value !== '' && key !== 'q') {
-            searchParams[key] = value;
-          }
-        }
-      }
-
-      const searchResults = await discoveryRepository.search(
-        searchParams as Parameters<typeof discoveryRepository.search>[0],
+      console.info(
+        `[CatalogGrounding] Executing plan: mode=${plan.retrievalMode} ` +
+        `intent=${plan.intent} scope=${plan.scope}`,
       );
 
-      for (const asset of searchResults.assets) {
-        results.push(assetToGrounding(asset));
+      // ── 1. Detail mode — fetch asset by ID + similar ───────────────
+      if (plan.retrievalMode === 'detail' && plan.targetEntityId) {
+        const results = await retrieveByDetail(plan.targetEntityId, maxResults);
+        return this.buildPayload(results, 'detail', 'detail', false, startTime);
       }
 
-      // ── Strategy 3: fallback — if search found nothing, get recent GA assets ─
+      // ── 2. Primary retrieval based on plan ─────────────────────────
+      let results: GroundingResult[];
+      const initialMode: RetrievalMode = plan.retrievalMode;
+
+      switch (plan.retrievalMode) {
+        case 'structured':
+          results = await retrieveStructured(plan.filters, context, maxResults);
+          break;
+
+        case 'hybrid':
+          results = await retrieveHybrid(query, plan.filters, plan.keywords, context, maxResults);
+          break;
+
+        case 'semantic':
+        default:
+          results = await retrieveSemantic(query, plan.keywords, context, maxResults);
+          break;
+      }
+
+      // ── 3. Fallback chain ──────────────────────────────────────────
       if (results.length === 0) {
-        const fallback = await discoveryRepository.search({ q: '*', pageSize: maxResults });
-        // If even wildcard fails, try fetching direct assets list
-        if (fallback.assets.length === 0) {
-          // No data at all — return empty
-          return [];
+        console.info(
+          `[CatalogGrounding] ${initialMode} search returned 0 results — trying fallback.`,
+        );
+
+        // If we tried semantic first, try structured as a fallback
+        if (initialMode === 'semantic' && Object.keys(plan.filters).length > 0) {
+          results = await retrieveStructured(plan.filters, context, maxResults);
+          if (results.length > 0) {
+            return this.buildPayload(results, 'structured', initialMode, true, startTime);
+          }
         }
-        for (const asset of fallback.assets) {
-          results.push(assetToGrounding(asset, 0.5));
+
+        // If we tried structured first, try semantic as a fallback
+        if (initialMode === 'structured') {
+          results = await retrieveSemantic(query, plan.keywords, context, maxResults);
+          if (results.length > 0) {
+            return this.buildPayload(results, 'semantic', initialMode, true, startTime);
+          }
         }
+
+        // If hybrid failed, try pure semantic then pure structured
+        if (initialMode === 'hybrid') {
+          results = await retrieveSemantic(query, plan.keywords, context, maxResults);
+          if (results.length > 0) {
+            return this.buildPayload(results, 'semantic', initialMode, true, startTime);
+          }
+          results = await retrieveStructured(plan.filters, context, maxResults);
+          if (results.length > 0) {
+            return this.buildPayload(results, 'structured', initialMode, true, startTime);
+          }
+        }
+
+        // Last resort: latest GA assets
+        results = await retrieveFallback(maxResults);
+        return this.buildPayload(results, 'fallback', initialMode, true, startTime);
       }
 
-      return results;
+      return this.buildPayload(results, initialMode, initialMode, false, startTime);
     } catch (err) {
-      console.error('[CatalogGroundingProvider] Grounding failed:', err);
-      return [];
+      console.error('[CatalogGrounding] Retrieval failed:', err);
+      return this.buildPayload([], 'none', 'none', false, Date.now());
     }
+  }
+
+  private buildPayload(
+    results: GroundingResult[],
+    modeUsed: RetrievalMode,
+    initialMode: RetrievalMode,
+    fallbackUsed: boolean,
+    startTime: number,
+  ): GroundingPayload {
+    return {
+      results,
+      metadata: {
+        retrievalModeUsed: modeUsed,
+        resultCount: results.length,
+        fallbackUsed,
+        initialModeAttempted: fallbackUsed ? initialMode : undefined,
+        retrievalTimeMs: Date.now() - startTime,
+        groundingProvider: 'catalog',
+      },
+    };
   }
 }

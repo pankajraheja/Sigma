@@ -21,9 +21,48 @@ export type GroundingStrategy =
 export type RetrievalMode =
   | 'semantic'       // NL / exploratory → keyword-extracted full-text search
   | 'structured'     // Exact / filter-like → direct DB filter query
+  | 'hybrid'         // Combined semantic + structured (filters + text)
   | 'detail'         // Entity detail page → fetch by ID + similar
   | 'fallback'       // Primary search returned nothing → latest GA assets
   | 'none';          // No retrieval performed (e.g. grounding provider missing)
+
+// ── Query interpretation — structured search plan produced BEFORE retrieval ─
+
+/** What the user wants to accomplish. */
+export type QueryIntent =
+  | 'search'         // General discovery / listing
+  | 'compare'        // Side-by-side comparison of two or more assets
+  | 'summarize'      // High-level summary of one or more assets
+  | 'explain'        // Detailed explanation of a concept or asset
+  | 'recommend'      // Suggestion / best-fit recommendation
+  | 'detail'         // Drill into a specific asset
+  | 'filter';        // Pure filter / faceted narrowing
+
+/** Whether the user is asking about a specific asset or the catalog at large. */
+export type QueryScope = 'detail' | 'discovery';
+
+/**
+ * The output of the query interpreter — a structured "search plan" that
+ * the grounding provider consumes instead of doing its own classification.
+ */
+export interface QueryInterpretation {
+  /** Detected user intent */
+  intent: QueryIntent;
+  /** Are we on an asset detail page or doing general discovery? */
+  scope: QueryScope;
+  /** Which retrieval strategy the grounding provider should use */
+  retrievalMode: RetrievalMode;
+  /** Extracted column-level filters (asset_kind, domain, publication_status, …) */
+  filters: Record<string, string>;
+  /** Cleaned keywords for semantic / full-text search */
+  keywords: string;
+  /** Specific asset kind mentioned in the query, if any */
+  assetKind?: string;
+  /** Entity id when scope is 'detail' */
+  targetEntityId?: string;
+  /** 0-1 confidence score for the classification */
+  confidence: number;
+}
 
 /**
  * Internal metadata about how retrieval was performed.

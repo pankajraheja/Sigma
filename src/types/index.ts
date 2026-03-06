@@ -17,4 +17,5 @@ export type {
   ChatReference,
   ChatQueryResponse,
   ChatDisplayMessage,
+  RetrievalMetadata,
 } from './chat'

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import {
   Search,
   ArrowRight,
@@ -21,6 +21,8 @@ import { useCatalogAssets } from './hooks/useCatalogAssets'
 import { useSearchCatalogAssets } from './hooks/useSearchCatalogAssets'
 import { useTaxonomyTerms } from './hooks/useTaxonomyTerms'
 import type { BackendAsset, BackendPublicationStatus, CatalogListParams, SearchParams } from './api/types'
+import SigmaChatSearchBox from '../chat/SigmaChatSearchBox'
+import { CATALOG_CHAT_SKILL } from './chat/catalogChatSkill'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -295,6 +297,7 @@ function SkeletonCard() {
 
 export default function CatalogDiscoveryPage() {
   const [searchParams] = useSearchParams()
+  const location = useLocation()
 
   const initialKind   = searchParams.get('kind') ?? ''
   const initialStatus = searchParams.get('status') as BackendPublicationStatus | null
@@ -479,6 +482,13 @@ export default function CatalogDiscoveryPage() {
               </div>
             ) : null
           }
+        />
+
+        {/* ── Centered AI Chat Search ───────────────────────────── */}
+        <SigmaChatSearchBox
+          skill={CATALOG_CHAT_SKILL}
+          context={{ page: location.pathname }}
+          className="mb-8"
         />
 
         {/* ── Error banner ──────────────────────────────────────── */}
