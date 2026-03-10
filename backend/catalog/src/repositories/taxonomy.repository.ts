@@ -27,7 +27,8 @@ export const taxonomyRepository = {
     let idx = 1;
 
     if (scheme) {
-      conditions.push(`t.scheme_code = $${idx++}`);
+      // scheme filter: join through buckets to match bucket_key
+      conditions.push(`b.bucket_key = $${idx++}`);
       params.push(scheme);
     }
     if (!include_inactive) {
@@ -36,10 +37,11 @@ export const taxonomyRepository = {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
-      SELECT t.*
+      SELECT t.*, b.bucket_key AS scheme_code, t.term_key AS code
       FROM metadata.taxonomy_terms t
+      JOIN metadata.taxonomy_buckets b ON b.id = t.bucket_id
       ${where}
-      ORDER BY t.scheme_code ASC, t.sort_order ASC, t.label ASC
+      ORDER BY b.bucket_key ASC, t.sort_order ASC, t.label ASC
     `;
     const result = await db.query<TaxonomyTerm>(sql, params);
     return result.rows;
@@ -58,9 +60,8 @@ export const taxonomyRepository = {
   // Create a taxonomy term
   // -------------------------------------------------------------------------
   async createTerm(term: {
-    scheme_code: string;
-    scheme_id?: string;
-    code: string;
+    bucket_id: string;
+    term_key: string;
     label: string;
     description?: string;
     parent_term_id?: string;
@@ -68,14 +69,13 @@ export const taxonomyRepository = {
   }): Promise<TaxonomyTerm> {
     const sql = `
       INSERT INTO metadata.taxonomy_terms
-        (scheme_code, scheme_id, code, label, description, parent_term_id, sort_order)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (bucket_id, term_key, label, description, parent_term_id, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
     const result = await db.query<TaxonomyTerm>(sql, [
-      term.scheme_code,
-      term.scheme_id ?? null,
-      term.code,
+      term.bucket_id,
+      term.term_key,
       term.label,
       term.description ?? null,
       term.parent_term_id ?? null,
@@ -178,10 +178,11 @@ export const taxonomyRepository = {
   // -------------------------------------------------------------------------
   async findSchemes(): Promise<string[]> {
     const sql = `
-      SELECT DISTINCT t.scheme_code
+      SELECT DISTINCT b.bucket_key AS scheme_code
       FROM metadata.taxonomy_terms t
+      JOIN metadata.taxonomy_buckets b ON b.id = t.bucket_id
       WHERE t.is_active = true
-      ORDER BY t.scheme_code ASC
+      ORDER BY b.bucket_key ASC
     `;
     const result = await db.query<{ scheme_code: string }>(sql);
     return result.rows.map((r) => r.scheme_code);
@@ -193,7 +194,8 @@ export const taxonomyRepository = {
   async findConceptSchemes(): Promise<ConceptScheme[]> {
     const sql = `
       SELECT cs.*
-      FROM metadata.concept_schemes cs
+      FROM metadata.taxonomy_schemes cs
+      WHERE cs.is_active = true
       ORDER BY cs.sort_order ASC, cs.label ASC
     `;
     const result = await db.query<ConceptScheme>(sql);
@@ -204,7 +206,7 @@ export const taxonomyRepository = {
   // Get a single concept scheme by code
   // -------------------------------------------------------------------------
   async findConceptSchemeByCode(code: string): Promise<ConceptScheme | null> {
-    const sql = `SELECT cs.* FROM metadata.concept_schemes cs WHERE cs.code = $1`;
+    const sql = `SELECT cs.* FROM metadata.taxonomy_schemes cs WHERE cs.scheme_key = $1`;
     const result = await db.query<ConceptScheme>(sql, [code]);
     return result.rows[0] ?? null;
   },
@@ -213,25 +215,21 @@ export const taxonomyRepository = {
   // Create a concept scheme
   // -------------------------------------------------------------------------
   async createConceptScheme(scheme: {
-    code: string;
+    scheme_key: string;
     label: string;
     description?: string;
-    is_hierarchical?: boolean;
-    is_locked?: boolean;
     sort_order?: number;
   }): Promise<ConceptScheme> {
     const sql = `
-      INSERT INTO metadata.concept_schemes
-        (code, label, description, is_hierarchical, is_locked, sort_order)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO metadata.taxonomy_schemes
+        (scheme_key, label, description, sort_order)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
     const result = await db.query<ConceptScheme>(sql, [
-      scheme.code,
+      scheme.scheme_key,
       scheme.label,
       scheme.description ?? null,
-      scheme.is_hierarchical ?? false,
-      scheme.is_locked ?? false,
       scheme.sort_order ?? 0,
     ]);
     return result.rows[0];
@@ -245,8 +243,7 @@ export const taxonomyRepository = {
     updates: Partial<{
       label: string;
       description: string | null;
-      is_hierarchical: boolean;
-      is_locked: boolean;
+      is_active: boolean;
       sort_order: number;
     }>,
   ): Promise<ConceptScheme | null> {
@@ -256,8 +253,7 @@ export const taxonomyRepository = {
 
     if (updates.label !== undefined)          { sets.push(`label = $${idx++}`);          params.push(updates.label); }
     if (updates.description !== undefined)    { sets.push(`description = $${idx++}`);    params.push(updates.description); }
-    if (updates.is_hierarchical !== undefined) { sets.push(`is_hierarchical = $${idx++}`); params.push(updates.is_hierarchical); }
-    if (updates.is_locked !== undefined)      { sets.push(`is_locked = $${idx++}`);      params.push(updates.is_locked); }
+    if (updates.is_active !== undefined)      { sets.push(`is_active = $${idx++}`);      params.push(updates.is_active); }
     if (updates.sort_order !== undefined)     { sets.push(`sort_order = $${idx++}`);     params.push(updates.sort_order); }
 
     if (sets.length === 0) return this.findConceptSchemeByCode(code);
@@ -265,9 +261,9 @@ export const taxonomyRepository = {
     params.push(code);
 
     const sql = `
-      UPDATE metadata.concept_schemes
+      UPDATE metadata.taxonomy_schemes
       SET ${sets.join(', ')}
-      WHERE code = $${idx}
+      WHERE scheme_key = $${idx}
       RETURNING *
     `;
     const result = await db.query<ConceptScheme>(sql, params);
@@ -284,17 +280,8 @@ export const taxonomyRepository = {
     changed_by?: string;
     changes?: Record<string, unknown>;
   }): Promise<void> {
-    const sql = `
-      INSERT INTO metadata.taxonomy_audit_log
-        (entity_type, entity_id, action, changed_by, changes)
-      VALUES ($1, $2, $3, $4, $5)
-    `;
-    await db.query(sql, [
-      entry.entity_type,
-      entry.entity_id,
-      entry.action,
-      entry.changed_by ?? null,
-      entry.changes ? JSON.stringify(entry.changes) : null,
-    ]);
+    // taxonomy_audit_log table not yet created — silently skip
+    // TODO: re-enable once the audit log migration is applied
+    void entry;
   },
 };

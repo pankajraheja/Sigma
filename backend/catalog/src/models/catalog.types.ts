@@ -120,9 +120,8 @@ export interface PublicationPromotion {
 
 export interface TaxonomyTerm {
   id: string;
-  scheme_code: string;
-  scheme_id: string | null;
-  code: string;
+  bucket_id: string;
+  term_key: string;
   label: string;
   description: string | null;
   parent_term_id: string | null;
@@ -138,11 +137,10 @@ export interface TaxonomyTerm {
 
 export interface ConceptScheme {
   id: string;
-  code: string;
+  scheme_key: string;
   label: string;
   description: string | null;
-  is_hierarchical: boolean;
-  is_locked: boolean;
+  is_active: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;

@@ -193,8 +193,8 @@ export const assetRepository = {
         ac.scheme_code,
         ac.classified_by,
         ac.classified_at,
-        t.label  AS term_label,
-        t.code   AS term_code
+        t.label    AS term_label,
+        t.term_key AS term_code
       FROM catalog.asset_classifications ac
       JOIN metadata.taxonomy_terms t ON t.id = ac.term_id
       WHERE ac.asset_id = $1

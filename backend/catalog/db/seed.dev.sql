@@ -151,6 +151,10 @@ DECLARE
     c_cls_6a      UUID := 'e0000001-0006-0000-0001-000000000001';
     c_cls_6b      UUID := 'e0000001-0006-0000-0001-000000000002';
 
+    -- Taxonomy bucket IDs (looked up from metadata.taxonomy_buckets)
+    v_bucket_svc  UUID;
+    v_bucket_acc  UUID;
+
 BEGIN
 
     -- =========================================================================
@@ -163,6 +167,14 @@ BEGIN
 
     IF v_forge_id IS NULL THEN
         RAISE EXCEPTION 'Modules not found in platform.modules. Run db/sql/ DDL files (001-020) first.';
+    END IF;
+
+    -- Look up taxonomy bucket IDs
+    SELECT id INTO v_bucket_svc FROM metadata.taxonomy_buckets WHERE bucket_key = 'service_lines';
+    SELECT id INTO v_bucket_acc FROM metadata.taxonomy_buckets WHERE bucket_key = 'assets_accelerators';
+
+    IF v_bucket_svc IS NULL OR v_bucket_acc IS NULL THEN
+        RAISE EXCEPTION 'Taxonomy buckets not found. Run db/sql/030 and 031 first.';
     END IF;
 
     -- =========================================================================
@@ -231,15 +243,15 @@ BEGIN
     --    Two schemes: service_line and capability.
     -- =========================================================================
 
-    INSERT INTO metadata.taxonomy_terms (id, scheme_code, code, label, is_active) VALUES
-        (c_tt_tax,  'service_line', 'DEV_TAX',  'Tax-d',        TRUE),
-        (c_tt_aud,  'service_line', 'DEV_AUD',  'Audit-d',      TRUE),
-        (c_tt_adv,  'service_line', 'DEV_ADV',  'Advisory-d',   TRUE),
-        (c_tt_tech, 'service_line', 'DEV_TECH', 'Technology-d', TRUE),
-        (c_tt_da,   'capability',   'DEV_DA',   'Data & Analytics-d',      TRUE),
-        (c_tt_pa,   'capability',   'DEV_PA',   'Process Automation-d',    TRUE),
-        (c_tt_ai,   'capability',   'DEV_AI',   'AI & Machine Learning-d', TRUE),
-        (c_tt_rep,  'capability',   'DEV_REP',  'Reporting-d',             TRUE)
+    INSERT INTO metadata.taxonomy_terms (id, bucket_id, term_key, label, is_active) VALUES
+        (c_tt_tax,  v_bucket_svc, 'DEV_TAX',  'Tax-d',        TRUE),
+        (c_tt_aud,  v_bucket_svc, 'DEV_AUD',  'Audit-d',      TRUE),
+        (c_tt_adv,  v_bucket_svc, 'DEV_ADV',  'Advisory-d',   TRUE),
+        (c_tt_tech, v_bucket_svc, 'DEV_TECH', 'Technology-d', TRUE),
+        (c_tt_da,   v_bucket_acc, 'DEV_DA',   'Data & Analytics-d',      TRUE),
+        (c_tt_pa,   v_bucket_acc, 'DEV_PA',   'Process Automation-d',    TRUE),
+        (c_tt_ai,   v_bucket_acc, 'DEV_AI',   'AI & Machine Learning-d', TRUE),
+        (c_tt_rep,  v_bucket_acc, 'DEV_REP',  'Reporting-d',             TRUE)
     ON CONFLICT DO NOTHING;
 
     RAISE NOTICE '[1/7] Taxonomy terms inserted.';
