@@ -1,5 +1,6 @@
 import type React from 'react'
 import { BrowserRouter } from 'react-router-dom'
+import { BrandProvider } from '../features/brand/BrandContext'
 
 // ---------------------------------------------------------------------------
 // AppProviders — composition root for all React context providers.
@@ -13,7 +14,9 @@ interface AppProvidersProps {
 export default function AppProviders({ children }: AppProvidersProps) {
   return (
     <BrowserRouter>
-      {children}
+      <BrandProvider>
+        {children}
+      </BrandProvider>
     </BrowserRouter>
   )
 }

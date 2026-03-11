@@ -11,6 +11,8 @@ import { taxonomyRouter, tagsRouter } from './taxonomy.routes.js';
 import { submissionsRouter } from './submissions.routes.js';
 import { chatRouter } from './chat.routes.js';
 import { metadataTaxonomyRouter } from './metadata-taxonomy.routes.js';
+import { generateRouter } from './generate.routes.js';
+import { prototypeSubmissionsRouter } from './prototype-submissions.routes.js';
 
 export function registerRoutes(app: Express): void {
   const prefix = config.apiPrefix; // default: /api/catalog
@@ -24,6 +26,12 @@ export function registerRoutes(app: Express): void {
 
   // ── Sigma Chat — cross-module chat endpoint ────────────────────────────
   app.use('/api/chat', chatRouter);
+
+  // ── Generate — model-agnostic HTML generation ─────────────────────────
+  app.use('/api/generate', generateRouter);
+
+  // ── Prototype submissions — export tracking ───────────────────────────
+  app.use('/api/submissions', prototypeSubmissionsRouter);
 
   // ── Metadata Taxonomy (read-only, 4-table schema) ──────────────────────
   app.use('/api/metadata/taxonomy', metadataTaxonomyRouter);
@@ -68,6 +76,11 @@ export const routeSummary = (prefix: string) => [
   `PTCH ${prefix}/taxonomy/terms/:id`,
   `DEL  ${prefix}/taxonomy/terms/:id`,
   `GET  ${prefix}/submissions/:id/published-asset`,
+  // generate
+  `POST /api/generate`,
+  // prototype submissions
+  `POST /api/submissions`,
+  `GET  /api/submissions`,
   // metadata taxonomy (read-only)
   `GET  /api/metadata/taxonomy/schemes`,
   `GET  /api/metadata/taxonomy/schemes/:schemeKey`,

@@ -1,0 +1,27 @@
+{
+  "colors": {
+    "primary": "#00338D",
+    "secondary": "#0047BB",
+    "background": "#FFFFFF",
+    "text": "#111827",
+    "border": "#E5E7EB"
+  },
+  "typography": {
+    "fontFamily": "\"KPMG Font\", Arial, sans-serif",
+    "fontWeightRegular": 400,
+    "fontWeightBold": 700,
+    "baseSizePx": 16
+  },
+  "borderRadius": {
+    "button": "9999px",
+    "card": "12px",
+    "input": "8px"
+  },
+  "spacing": {
+    "unit": 4,
+    "scale": [0, 4, 8, 12, 16, 24, 32, 48, 64, 96]
+  },
+  "logoUrl": "/assets/logos/kpmg-logo.svg",
+  "companyName": "KPMG",
+  "buttonStyle": "pill"
+}

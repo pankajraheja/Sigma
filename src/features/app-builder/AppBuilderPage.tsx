@@ -1,5 +1,11 @@
-import ModulePlaceholder from '../../components/ui/ModulePlaceholder'
+// ---------------------------------------------------------------------------
+// AppBuilderPage — entry point for Solutions Studio.
+//
+// Composition only — all logic lives in StudioWorkspace and its children.
+// ---------------------------------------------------------------------------
+
+import StudioWorkspace from './components/StudioWorkspace'
 
 export default function AppBuilderPage() {
-  return <ModulePlaceholder moduleId="app-builder" />
+  return <StudioWorkspace />
 }
