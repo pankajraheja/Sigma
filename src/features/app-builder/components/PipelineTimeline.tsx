@@ -20,6 +20,7 @@ import {
   type StageResult,
   type StageStatus,
 } from '../types'
+import { formatDuration } from '../utils/format'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -30,6 +31,7 @@ interface PipelineTimelineProps {
   currentStage: PipelineStage | null
   selectedStage: PipelineStage | null
   onSelectStage: (stage: PipelineStage) => void
+  isLive?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +56,7 @@ export default function PipelineTimeline({
   currentStage,
   selectedStage,
   onSelectStage,
+  isLive = false,
 }: PipelineTimelineProps) {
   // Build a lookup from stage results
   const stageMap = new Map(stages.map((s) => [s.stage, s]))
@@ -61,10 +64,15 @@ export default function PipelineTimeline({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-2.5 border-b border-gray-200">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200">
         <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
           Pipeline Stages
         </span>
+        {isLive && (
+          <span className="text-[9px] px-1.5 py-px rounded-full bg-blue-100 text-blue-600 font-medium animate-pulse">
+            updating
+          </span>
+        )}
       </div>
 
       {/* Stage list */}
@@ -149,15 +157,3 @@ export default function PipelineTimeline({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  const secs = Math.round(ms / 1000)
-  if (secs < 60) return `${secs}s`
-  const mins = Math.floor(secs / 60)
-  const remSecs = secs % 60
-  return `${mins}m ${remSecs}s`
-}

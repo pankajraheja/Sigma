@@ -1,90 +1,125 @@
 // ---------------------------------------------------------------------------
-// BrandingPage — Phase 1 Admin Control Center brand configuration page.
+// BrandingPage — Admin Control Center brand configuration page.
 //
-// Left:  editable form for all BrandConfig fields
-// Right: live preview rendered using active brand tokens
+// Left:  editable form for all BrandConfig fields (neutral admin shell)
+// Right: live preview rendered using active brand tokens (branded canvas)
 //
-// Admin shell uses neutral gray styling — brand colors only in the preview.
-// Structured for future taxonomy config and validation rules alongside.
+// Admin shell uses design tokens (surface/ink/border) — brand colors appear
+// ONLY inside the bounded preview canvas on the right.
 // ---------------------------------------------------------------------------
 
-import { Palette, Save, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Palette, Save, RotateCcw, Monitor } from 'lucide-react'
 import { useBrand } from '../../brand/BrandContext'
+import PageShell, { PageContent } from '../../../components/shell/PageShell'
+import PageHeader from '../../../components/shell/PageHeader'
+import LoadingState from '../../../components/ui/LoadingState'
 import BrandEditorForm from './components/BrandEditorForm'
 import BrandPreview from './components/BrandPreview'
 import BrandSwitcher from './components/BrandSwitcher'
 
 export default function BrandingPage() {
+  const navigate = useNavigate()
   const { currentBrand, brandKey, loading, error, switchBrand, updateToken } = useBrand()
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 size={20} className="animate-spin text-gray-400" />
-        <span className="ml-2 text-[13px] text-gray-500">Loading brand configuration…</span>
-      </div>
+      <PageShell>
+        <PageHeader
+          icon={Palette}
+          title="Brand Configuration"
+          subtitle="Manage brand tokens and preview before publishing"
+          onBack={() => navigate('/admin')}
+        />
+        <LoadingState message="Loading brand configuration…" />
+      </PageShell>
     )
   }
 
   if (error || !currentBrand) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <span className="text-[13px] text-red-500">{error ?? 'Brand not found'}</span>
-      </div>
+      <PageShell>
+        <PageHeader
+          icon={Palette}
+          title="Brand Configuration"
+          subtitle="Manage brand tokens and preview before publishing"
+          onBack={() => navigate('/admin')}
+        />
+        <div className="flex items-center justify-center py-24">
+          <span className="text-[13px] text-error">{error ?? 'Brand not found'}</span>
+        </div>
+      </PageShell>
     )
   }
 
   return (
-    <div className="min-h-full bg-gray-50">
-      {/* ── Header bar ─────────────────────────────────────────────── */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
-        <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-gray-100">
-              <Palette size={16} className="text-gray-600" />
-            </div>
-            <div>
-              <h1 className="text-[15px] font-bold text-gray-900">Brand Configuration</h1>
-              <p className="text-[11px] text-gray-500">Manage brand tokens and preview before publishing to the workspace</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
+    <PageShell>
+      <PageHeader
+        icon={Palette}
+        title="Brand Configuration"
+        subtitle="Manage brand tokens and preview before publishing to the workspace"
+        maxWidth="7xl"
+        onBack={() => navigate('/admin')}
+        actions={
+          <div className="flex items-center gap-2">
             <BrandSwitcher activeKey={brandKey} onSwitch={switchBrand} />
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-md bg-gray-800 px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-gray-700 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-surface-subtle transition-colors"
+              onClick={() => {
+                // Phase 2: reset to last saved state
+              }}
+            >
+              <RotateCcw size={13} />
+              Reset
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary-900 px-3.5 py-1.5 text-[13px] font-medium text-ink-inverse hover:bg-primary-800 transition-colors"
               onClick={() => {
                 // Phase 2: write through API route
                 // eslint-disable-next-line no-alert
                 alert('Save will be wired to an API route in Phase 2.')
               }}
             >
-              <Save size={14} />
+              <Save size={13} />
               Save
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── Two-column layout ──────────────────────────────────────── */}
-      <div className="mx-auto max-w-7xl px-6 py-6">
+      <PageContent maxWidth="7xl">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-6 items-start">
-          {/* Left — Editor */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-[13px] font-bold text-gray-700 mb-4">Token Editor</h2>
-            <BrandEditorForm brand={currentBrand} onUpdate={updateToken} />
+          {/* Left — Token Editor */}
+          <div className="rounded-lg border border-border bg-surface shadow-card">
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-border-muted">
+              <Palette size={14} className="text-ink-muted" />
+              <span className="text-[13px] font-semibold text-ink">Token Editor</span>
+            </div>
+            <div className="p-5">
+              <BrandEditorForm brand={currentBrand} onUpdate={updateToken} />
+            </div>
           </div>
 
-          {/* Right — Preview */}
+          {/* Right — Live Preview Canvas */}
           <div className="lg:sticky lg:top-24">
-            <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="text-[13px] font-bold text-gray-700 mb-4">Live Preview</h2>
-              <BrandPreview brand={currentBrand} />
+            <div className="rounded-lg border border-border bg-surface shadow-card">
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-border-muted">
+                <Monitor size={14} className="text-ink-muted" />
+                <span className="text-[13px] font-semibold text-ink">Live Preview</span>
+                <span className="text-[10px] text-ink-faint ml-auto">Branded output preview</span>
+              </div>
+              <div className="p-4 bg-surface-subtle">
+                {/* The preview canvas — brand colors are isolated inside this boundary */}
+                <div className="rounded-md shadow-panel overflow-hidden">
+                  <BrandPreview brand={currentBrand} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   )
 }

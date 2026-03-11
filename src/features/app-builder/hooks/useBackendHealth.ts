@@ -11,6 +11,7 @@ import type { BackendStatus, HealthResponse } from '../types'
 
 const POLL_OK_MS = 15_000
 const POLL_ERR_MS = 30_000
+const HEALTH_TIMEOUT_MS = 8_000
 
 interface BackendHealthState {
   status: BackendStatus
@@ -26,10 +27,21 @@ export function useBackendHealth() {
   })
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const check = useCallback(async () => {
+    // Abort any in-flight request before starting a new one
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    // Timeout: abort if health check takes too long
+    const timeout = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS)
+
     try {
-      const detail = await sdlcApi.checkHealth()
+      const detail = await sdlcApi.checkHealth(controller.signal)
+      clearTimeout(timeout)
+
       const status: BackendStatus =
         detail.status === 'ok' ? 'connected' :
         detail.status === 'degraded' ? 'degraded' :
@@ -43,6 +55,7 @@ export function useBackendHealth() {
 
       timerRef.current = setTimeout(check, POLL_OK_MS)
     } catch {
+      clearTimeout(timeout)
       setState((prev) => ({
         ...prev,
         status: 'disconnected',
@@ -56,6 +69,7 @@ export function useBackendHealth() {
     check()
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      abortRef.current?.abort()
     }
   }, [check])
 

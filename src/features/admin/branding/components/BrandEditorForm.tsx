@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // BrandEditorForm — editable form for all BrandConfig fields.
-// Admin-neutral styling (gray). Does not use brand colors.
+// Admin-neutral styling using design tokens. Does not use brand colors.
 // ---------------------------------------------------------------------------
 
 import type { BrandConfig, ButtonStyle } from '../../../../types/brand'
@@ -13,13 +13,13 @@ interface BrandEditorFormProps {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{children}</label>
+  return <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wide mb-1">{children}</label>
 }
 
 function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-5">
-      <h4 className="text-[12px] font-bold text-gray-700 border-b border-gray-200 pb-1.5 mb-3">{title}</h4>
+      <h4 className="text-[12px] font-bold text-ink border-b border-border-muted pb-1.5 mb-3">{title}</h4>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">{children}</div>
     </div>
   )
@@ -33,7 +33,7 @@ function TextInput({ label, value, onChange }: { label: string; value: string; o
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border border-gray-300 bg-white px-2.5 py-1.5 text-[13px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-gray-400"
+        className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-border-strong"
       />
     </div>
   )
@@ -47,7 +47,7 @@ function NumberInput({ label, value, onChange }: { label: string; value: number;
         type="number"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded border border-gray-300 bg-white px-2.5 py-1.5 text-[13px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-gray-400"
+        className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-border-strong"
       />
     </div>
   )
@@ -62,13 +62,13 @@ function ColorInput({ label, value, onChange }: { label: string; value: string; 
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 w-8 shrink-0 rounded border border-gray-300 cursor-pointer p-0.5"
+          className="h-8 w-8 shrink-0 rounded border border-border cursor-pointer p-0.5"
         />
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 rounded border border-gray-300 bg-white px-2.5 py-1.5 text-[13px] text-gray-800 font-mono focus:outline-none focus:ring-1 focus:ring-gray-400"
+          className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] text-ink font-mono focus:outline-none focus:ring-1 focus:ring-border-strong"
         />
       </div>
     </div>
@@ -124,7 +124,7 @@ export default function BrandEditorForm({ brand, onUpdate }: BrandEditorFormProp
               const nums = e.target.value.split(',').map((s) => Number(s.trim())).filter((n) => !isNaN(n))
               onUpdate('spacing.scale', nums)
             }}
-            className="w-full rounded border border-gray-300 bg-white px-2.5 py-1.5 text-[13px] text-gray-800 font-mono focus:outline-none focus:ring-1 focus:ring-gray-400"
+            className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] text-ink font-mono focus:outline-none focus:ring-1 focus:ring-border-strong"
           />
         </div>
       </FieldGroup>
@@ -139,10 +139,10 @@ export default function BrandEditorForm({ brand, onUpdate }: BrandEditorFormProp
                 key={style}
                 type="button"
                 onClick={() => onUpdate('buttonStyle', style)}
-                className={`px-3 py-1.5 text-[12px] font-medium rounded border transition-colors ${
+                className={`px-3 py-1.5 text-[12px] font-medium rounded-md border transition-colors ${
                   brand.buttonStyle === style
-                    ? 'bg-gray-800 text-white border-gray-800'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    ? 'bg-primary-900 text-ink-inverse border-primary-900'
+                    : 'bg-surface text-ink-muted border-border hover:border-border-strong'
                 }`}
               >
                 {style.charAt(0).toUpperCase() + style.slice(1)}

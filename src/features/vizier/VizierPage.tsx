@@ -15,6 +15,8 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import StatusBadge from '../../components/ui/StatusBadge'
+import PageShell, { PageContent } from '../../components/shell/PageShell'
+import PageHeader from '../../components/shell/PageHeader'
 
 // ---------------------------------------------------------------------------
 // Shared inner-card primitives
@@ -258,25 +260,16 @@ function CostUsageSection() {
 
 export default function VizierPage() {
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
-      {/* Page header */}
-      <div className="px-8 pt-8 pb-6 border-b border-border bg-surface">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center gap-3 mb-1">
-            <BarChart3 size={18} className="text-primary-600 shrink-0" />
-            <h1 className="text-[18px] font-semibold text-ink tracking-tight">Vizier</h1>
-            <StatusBadge status="preview" />
-          </div>
-          <p className="text-[13px] text-ink-muted leading-relaxed max-w-2xl">
-            Governance, reporting, evaluation, and portfolio intelligence for the SigAI platform.
-            Sections below will populate as backend APIs are wired.
-          </p>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        icon={BarChart3}
+        title="Vizier"
+        subtitle="Governance, reporting, evaluation, and portfolio intelligence for the SigAI platform"
+        actions={<StatusBadge status="preview" />}
+      />
 
-      {/* Section grid */}
-      <div className="flex-1 px-8 py-6">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <PageContent className="py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <GovernanceStatusSection />
           <ReportingSection />
           <EvaluationSection />
@@ -285,7 +278,7 @@ export default function VizierPage() {
             <CostUsageSection />
           </div>
         </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   )
 }

@@ -15,7 +15,6 @@ import { Download, Loader2, CheckCircle2 } from 'lucide-react'
 import { usePrototype } from '../PrototypeContext'
 import { useBrand } from '../../brand/BrandContext'
 import { generateReadme } from '../../../lib/generateReadme'
-import type { SubmissionRecord } from '../types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,7 +30,7 @@ function generateId(): string {
   return `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-async function postSubmission(record: SubmissionRecord): Promise<void> {
+async function postSubmission(record: Record<string, unknown>): Promise<void> {
   const res = await fetch('/api/submissions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -100,6 +99,7 @@ export default function SubmitButton() {
       // 4. POST submission record (exportable pages only)
       const record = {
         id: generateId(),
+        source: 'prototype-lab' as const,
         timestamp: new Date().toISOString(),
         pageCount: exportablePages.length,
         brandName: brandKey,
@@ -136,7 +136,7 @@ export default function SubmitButton() {
             ? 'bg-green-600 text-white'
             : state === 'error'
               ? 'bg-red-600 text-white'
-              : 'bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed'
+              : 'bg-primary-900 text-ink-inverse hover:bg-primary-800 disabled:opacity-40 disabled:cursor-not-allowed'
         }`}
       >
         {state === 'exporting' && <Loader2 size={14} className="animate-spin" />}
@@ -156,7 +156,7 @@ export default function SubmitButton() {
       )}
 
       {exportablePages.length === 0 && state === 'idle' && (
-        <span className="text-[11px] text-gray-400">No pages to export</span>
+        <span className="text-[11px] text-ink-faint">No pages to export</span>
       )}
     </div>
   )

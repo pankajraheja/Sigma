@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import LoadingState from '../components/ui/LoadingState'
 
 // ---------------------------------------------------------------------------
 // Route registry — all top-level routes for the SigAI host shell.
@@ -18,11 +19,7 @@ const AdminPage           = lazy(() => import('../features/admin/AdminPage'))
 const VizierPage          = lazy(() => import('../features/vizier/VizierPage'))
 
 function RouteLoader() {
-  return (
-    <div className="flex flex-1 items-center justify-center py-24">
-      <span className="text-[13px] text-ink-faint">Loading…</span>
-    </div>
-  )
+  return <LoadingState message="Loading module…" />
 }
 
 export default function AppRoutes() {

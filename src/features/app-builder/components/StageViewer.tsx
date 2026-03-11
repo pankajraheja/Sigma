@@ -14,8 +14,10 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  SkipForward,
 } from 'lucide-react'
 import { STAGE_META, type StageResult, type StageArtifact } from '../types'
+import { formatDuration } from '../utils/format'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -35,7 +37,7 @@ export default function StageViewer({ result }: StageViewerProps) {
       <div className="flex flex-col h-full">
         <ViewerHeader title="Stage Output" />
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[12px] text-gray-400">
+          <p className="text-[12px] text-ink-faint">
             Select a stage to view its output
           </p>
         </div>
@@ -57,7 +59,7 @@ export default function StageViewer({ result }: StageViewerProps) {
         {/* Status: pending */}
         {result.status === 'pending' && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-[12px] text-gray-400 italic">
+            <p className="text-[12px] text-ink-faint italic">
               Waiting for pipeline to reach this stage…
             </p>
           </div>
@@ -66,9 +68,22 @@ export default function StageViewer({ result }: StageViewerProps) {
         {/* Status: running */}
         {result.status === 'running' && (
           <div className="flex flex-col items-center justify-center h-full gap-2">
-            <Loader2 size={20} className="text-blue-500 animate-spin" />
-            <p className="text-[12px] text-blue-600">
+            <Loader2 size={20} className="text-primary-500 animate-spin" />
+            <p className="text-[12px] text-primary-600">
               {meta.label} in progress…
+            </p>
+          </div>
+        )}
+
+        {/* Status: skipped */}
+        {result.status === 'skipped' && (
+          <div className="flex flex-col items-center justify-center h-full gap-2">
+            <SkipForward size={20} className="text-ink-faint" />
+            <p className="text-[12px] text-ink-muted">
+              {meta.label} was skipped
+            </p>
+            <p className="text-[11px] text-ink-faint">
+              This stage was not required for the current pipeline configuration.
             </p>
           </div>
         )}
@@ -95,7 +110,7 @@ export default function StageViewer({ result }: StageViewerProps) {
             {result.output && (
               <div>
                 <SectionLabel icon={FileText} label="Output" />
-                <pre className="mt-1.5 p-3 rounded-md bg-gray-50 border border-gray-200 text-[11px] text-gray-700 whitespace-pre-wrap overflow-x-auto max-h-[500px] overflow-y-auto font-mono">
+                <pre className="mt-1.5 p-3 rounded-md bg-surface-subtle border border-border text-[11px] text-ink-muted whitespace-pre-wrap overflow-x-auto max-h-[500px] overflow-y-auto font-mono">
                   {result.output}
                 </pre>
               </div>
@@ -115,7 +130,7 @@ export default function StageViewer({ result }: StageViewerProps) {
 
             {/* Empty output */}
             {!result.output && result.artifacts.length === 0 && (
-              <p className="text-[12px] text-gray-400 italic text-center py-8">
+              <p className="text-[12px] text-ink-faint italic text-center py-8">
                 Stage completed with no output content.
               </p>
             )}
@@ -140,9 +155,9 @@ function ViewerHeader({
   durationMs?: number | null
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200">
+    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+        <span className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider">
           {title}
         </span>
         {status && (
@@ -150,7 +165,7 @@ function ViewerHeader({
         )}
       </div>
       {durationMs != null && (
-        <div className="flex items-center gap-1 text-[10px] text-gray-400">
+        <div className="flex items-center gap-1 text-[10px] text-ink-faint">
           <Clock size={10} />
           {formatDuration(durationMs)}
         </div>
@@ -161,12 +176,12 @@ function ViewerHeader({
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    pending: 'bg-gray-100 text-gray-500',
+    pending: 'bg-surface-subtle text-ink-faint',
     running: 'bg-blue-100 text-blue-600',
     completed: 'bg-green-100 text-green-600',
     failed: 'bg-red-100 text-red-600',
     rejected: 'bg-amber-100 text-amber-600',
-    skipped: 'bg-gray-100 text-gray-500',
+    skipped: 'bg-surface-subtle text-ink-faint',
   }
 
   return (
@@ -179,8 +194,8 @@ function StatusBadge({ status }: { status: string }) {
 function SectionLabel({ icon: Icon, label }: { icon: typeof FileText; label: string }) {
   return (
     <div className="flex items-center gap-1.5">
-      <Icon size={12} className="text-gray-400" />
-      <span className="text-[11px] font-medium text-gray-600">{label}</span>
+      <Icon size={12} className="text-ink-faint" />
+      <span className="text-[11px] font-medium text-ink-muted">{label}</span>
     </div>
   )
 }
@@ -189,34 +204,21 @@ function ArtifactCard({ artifact }: { artifact: StageArtifact }) {
   const isCode = artifact.type.startsWith('code/') || artifact.type === 'application/json'
 
   return (
-    <div className="rounded-md border border-gray-200 overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-200">
+    <div className="rounded-md border border-border overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-subtle border-b border-border">
         {isCode ? (
           <FileJson size={12} className="text-indigo-500" />
         ) : (
-          <FileText size={12} className="text-gray-400" />
+          <FileText size={12} className="text-ink-faint" />
         )}
-        <span className="text-[11px] font-medium text-gray-600 flex-1">{artifact.name}</span>
-        <span className="text-[9px] text-gray-400">{artifact.type}</span>
+        <span className="text-[11px] font-medium text-ink-muted flex-1">{artifact.name}</span>
+        <span className="text-[9px] text-ink-faint">{artifact.type}</span>
       </div>
       {artifact.content && (
-        <pre className="px-3 py-2 text-[10px] text-gray-700 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono bg-white">
+        <pre className="px-3 py-2 text-[10px] text-ink-muted whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono bg-surface">
           {artifact.content}
         </pre>
       )}
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  const secs = Math.round(ms / 1000)
-  if (secs < 60) return `${secs}s`
-  const mins = Math.floor(secs / 60)
-  const remSecs = secs % 60
-  return `${mins}m ${remSecs}s`
 }

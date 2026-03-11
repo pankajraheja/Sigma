@@ -8,7 +8,7 @@
 // frontend state machine for a pipeline run.
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { sdlcApi, SdlcApiError } from '../api/sdlcApi'
 import type {
   ProjectRequest,
@@ -17,8 +17,11 @@ import type {
   StageResult,
   RunStatus,
   ReviewDecision,
+  PackagingSummary,
+  DeliverableOutput,
 } from '../types'
-import { PIPELINE_STAGES } from '../types'
+import { PIPELINE_STAGES, STAGE_META, TERMINAL_STATUSES } from '../types'
+import { derivePackagingSummary, buildDeliverableOutput } from '../utils/packaging'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,6 +29,9 @@ import { PIPELINE_STAGES } from '../types'
 
 /** Polling interval while pipeline is running (ms) */
 const POLL_INTERVAL_MS = 3000
+
+/** Stop polling after this many consecutive errors */
+const MAX_CONSECUTIVE_ERRORS = 5
 
 // ---------------------------------------------------------------------------
 // Hook state
@@ -88,41 +94,73 @@ export function usePipelineRun() {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const pollErrorCountRef = useRef(0)
+  /** Tracks whether the user has manually selected a stage during this run */
+  const userSelectedStageRef = useRef(false)
 
   // ── Cleanup on unmount ────────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+      stopPolling()
       abortRef.current?.abort()
     }
   }, [])
 
+  function stopPolling() {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = null
+  }
+
   // ── Poll for run status updates ──────────────────────────────────────
   const startPolling = useCallback((runId: string) => {
-    if (pollRef.current) clearInterval(pollRef.current)
+    stopPolling()
+    pollErrorCountRef.current = 0
 
     pollRef.current = setInterval(async () => {
       try {
         const controller = new AbortController()
         const { run } = await sdlcApi.getRunStatus(runId, controller.signal)
 
-        setState((prev) => ({
-          ...prev,
-          run,
-          polling: false,
-          // Auto-select the current stage if user hasn't manually selected one
-          selectedStage: prev.selectedStage ?? run.currentStage,
-        }))
+        // Reset error counter on success
+        pollErrorCountRef.current = 0
 
-        // Stop polling when the run is no longer active
-        const terminalStatuses: RunStatus[] = ['completed', 'failed', 'rejected']
-        if (terminalStatuses.includes(run.status)) {
-          if (pollRef.current) clearInterval(pollRef.current)
-          pollRef.current = null
+        setState((prev) => {
+          // Preserve user's manual stage selection; auto-advance only if they haven't picked one
+          const nextSelectedStage = userSelectedStageRef.current
+            ? prev.selectedStage
+            : (run.currentStage ?? prev.selectedStage)
+
+          return {
+            ...prev,
+            run,
+            polling: true,
+            error: null,
+            selectedStage: nextSelectedStage,
+          }
+        })
+
+        // Stop polling when the run reaches a terminal state
+        if (TERMINAL_STATUSES.includes(run.status)) {
+          stopPolling()
+          setState((prev) => ({ ...prev, polling: false }))
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
-        console.warn('[usePipelineRun] Poll error:', err)
+
+        pollErrorCountRef.current++
+        console.warn(
+          `[usePipelineRun] Poll error (${pollErrorCountRef.current}/${MAX_CONSECUTIVE_ERRORS}):`,
+          err,
+        )
+
+        // Stop polling after too many consecutive failures
+        if (pollErrorCountRef.current >= MAX_CONSECUTIVE_ERRORS) {
+          stopPolling()
+          const msg = err instanceof SdlcApiError
+            ? err.message
+            : 'Lost connection to SDLC backend'
+          setState((prev) => ({ ...prev, polling: false, error: msg }))
+        }
       }
     }, POLL_INTERVAL_MS)
   }, [])
@@ -131,7 +169,8 @@ export function usePipelineRun() {
   const startRun = useCallback(async (request: ProjectRequest) => {
     // Abort any previous operation
     abortRef.current?.abort()
-    if (pollRef.current) clearInterval(pollRef.current)
+    stopPolling()
+    userSelectedStageRef.current = false
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -177,6 +216,7 @@ export function usePipelineRun() {
 
   // ── Select a stage for inspection ────────────────────────────────────
   const selectStage = useCallback((stage: PipelineStage) => {
+    userSelectedStageRef.current = true
     setState((prev) => ({ ...prev, selectedStage: stage }))
   }, [])
 
@@ -212,8 +252,7 @@ export function usePipelineRun() {
     const runId = state.run?.id
     if (!runId) return
 
-    if (pollRef.current) clearInterval(pollRef.current)
-    pollRef.current = null
+    stopPolling()
 
     try {
       await sdlcApi.cancelRun(runId)
@@ -230,9 +269,11 @@ export function usePipelineRun() {
 
   // ── Reset to start a new run ─────────────────────────────────────────
   const reset = useCallback(() => {
-    if (pollRef.current) clearInterval(pollRef.current)
-    pollRef.current = null
+    stopPolling()
     abortRef.current?.abort()
+    userSelectedStageRef.current = false
+    setHandedOff(false)
+    setHandingOff(false)
     setState({
       run: null,
       selectedStage: null,
@@ -241,6 +282,54 @@ export function usePipelineRun() {
       error: null,
     })
   }, [])
+
+  // ── Hand off to Delivery Hub ────────────────────────────────────────
+  const [handingOff, setHandingOff] = useState(false)
+  const [handedOff, setHandedOff] = useState(false)
+
+  const handOffToDelivery = useCallback(async () => {
+    const run = state.run
+    if (!run || run.status !== 'completed') return
+
+    setHandingOff(true)
+    setState((prev) => ({ ...prev, error: null }))
+
+    try {
+      const payload = {
+        id: `studio-${run.id}-${Date.now()}`,
+        source: 'solutions-studio' as const,
+        runId: run.id,
+        projectName: run.request.name,
+        artifactCount: run.stages.reduce((sum, s) => sum + s.artifacts.length, 0),
+        readmeSummary: `SDLC pipeline output for "${run.request.name}". ${run.request.description.slice(0, 200)}`,
+        stageSummary: run.stages.map((s) => ({
+          stage: s.stage,
+          label: STAGE_META[s.stage].label,
+          status: s.status,
+          artifactCount: s.artifacts.length,
+        })),
+        provider: run.providerInfo,
+      }
+
+      const res = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as Record<string, string>).message ?? `Handoff failed (${res.status})`)
+      }
+
+      setHandedOff(true)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Handoff to Delivery Hub failed'
+      setState((prev) => ({ ...prev, error: msg }))
+    } finally {
+      setHandingOff(false)
+    }
+  }, [state.run])
 
   // ── Derived state ────────────────────────────────────────────────────
   const selectedStageResult: StageResult | null =
@@ -252,19 +341,35 @@ export function usePipelineRun() {
   const canRetry = state.run?.status === 'rejected' && latestReview && !latestReview.approved &&
     latestReview.attempt < latestReview.maxAttempts
 
+  // Packaging and deliverable state — derived from run data
+  const packagingSummary: PackagingSummary | null = useMemo(
+    () => state.run ? derivePackagingSummary(state.run) : null,
+    [state.run],
+  )
+
+  const deliverable: DeliverableOutput | null = useMemo(
+    () => state.run ? buildDeliverableOutput(state.run) : null,
+    [state.run],
+  )
+
   return {
     run: state.run,
     selectedStage: state.selectedStage,
     selectedStageResult,
     latestReview,
+    packagingSummary,
+    deliverable,
     starting: state.starting,
     polling: state.polling,
     error: state.error,
     canRetry: !!canRetry,
+    handingOff,
+    handedOff,
     startRun,
     selectStage,
     retryRun,
     cancelRun,
     reset,
+    handOffToDelivery,
   }
 }

@@ -17,8 +17,6 @@ interface PageTreeProps {
   onSelect: (id: string) => void
 }
 
-let pageCounter = 1
-
 function generateId(): string {
   return `page_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 }
@@ -28,6 +26,7 @@ export default function PageTree({ selectedPageId, onSelect }: PageTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const pageCounterRef = useRef(pages.length)
 
   useEffect(() => {
     if (editingId && inputRef.current) {
@@ -37,11 +36,12 @@ export default function PageTree({ selectedPageId, onSelect }: PageTreeProps) {
   }, [editingId])
 
   function handleAdd() {
-    pageCounter++
+    pageCounterRef.current++
+    const counter = pageCounterRef.current
     const newPage: PrototypePage = {
       id: generateId(),
-      route: `/page-${pageCounter}`,
-      title: `Page ${pageCounter}`,
+      route: `/page-${counter}`,
+      title: `Page ${counter}`,
       description: '',
       html: '',
       updatedAt: new Date().toISOString(),
@@ -77,14 +77,14 @@ export default function PageTree({ selectedPageId, onSelect }: PageTreeProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <span className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider">
           Pages ({pages.length})
         </span>
         <button
           type="button"
           onClick={handleAdd}
-          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+          className="p-1 rounded hover:bg-surface-subtle text-ink-faint hover:text-ink-muted transition-colors"
           title="Add page"
         >
           <Plus size={14} />
@@ -104,13 +104,13 @@ export default function PageTree({ selectedPageId, onSelect }: PageTreeProps) {
               key={page.id}
               className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
                 isSelected
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-ink-muted hover:bg-surface-subtle'
               }`}
               onClick={() => onSelect(page.id)}
               onDoubleClick={() => startRename(page)}
             >
-              <FileText size={13} className={isSelected ? 'text-blue-500' : 'text-gray-400'} />
+              <FileText size={13} className={isSelected ? 'text-primary-500' : 'text-ink-faint'} />
 
               {isEditing ? (
                 <input
@@ -123,7 +123,7 @@ export default function PageTree({ selectedPageId, onSelect }: PageTreeProps) {
                     if (e.key === 'Enter') commitRename()
                     if (e.key === 'Escape') setEditingId(null)
                   }}
-                  className="flex-1 text-[12px] bg-white border border-blue-300 rounded px-1 py-0.5 outline-none"
+                  className="flex-1 text-[12px] bg-surface border border-primary-300 rounded px-1 py-0.5 outline-none"
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
@@ -136,7 +136,7 @@ export default function PageTree({ selectedPageId, onSelect }: PageTreeProps) {
               {!isEditing && (
                 <span
                   className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    hasContent ? 'bg-green-400' : 'bg-gray-300'
+                    hasContent ? 'bg-green-400' : 'bg-border-strong'
                   }`}
                   title={hasContent ? 'Has content' : 'Empty'}
                 />
@@ -149,7 +149,7 @@ export default function PageTree({ selectedPageId, onSelect }: PageTreeProps) {
                     e.stopPropagation()
                     handleDelete(page, isSelected)
                   }}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-50 text-ink-faint hover:text-red-500 transition-all"
                   title="Delete page"
                 >
                   <Trash2 size={12} />

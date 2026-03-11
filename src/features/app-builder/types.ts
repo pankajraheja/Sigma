@@ -76,6 +76,63 @@ export interface StageArtifact {
   type: string
   /** Content or download reference */
   content: string
+  /** File size in bytes if known */
+  sizeBytes?: number
+  /** Download URL if the backend exposes one */
+  downloadUrl?: string
+}
+
+// ---------------------------------------------------------------------------
+// Packaging — summary of the packaging stage output
+// ---------------------------------------------------------------------------
+
+export type PackagingStatus =
+  | 'not_started'  // packaging stage hasn't run yet
+  | 'in_progress'  // packaging stage is currently running
+  | 'ready'        // packaging completed, deliverables available
+  | 'failed'       // packaging failed
+  | 'skipped'      // packaging was skipped (e.g. run failed before reaching it)
+
+export interface PackagingSummary {
+  status: PackagingStatus
+  /** Total number of deliverable artifacts across all stages */
+  totalArtifacts: number
+  /** Artifacts grouped by stage for structured display */
+  artifactsByStage: Array<{
+    stage: PipelineStage
+    stageLabel: string
+    artifacts: StageArtifact[]
+  }>
+  /** Whether all pipeline stages completed successfully */
+  allStagesCompleted: boolean
+  /** Whether the run passed review (if review stage exists) */
+  reviewApproved: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Deliverable output — handoff-ready output descriptor for Delivery Hub
+// ---------------------------------------------------------------------------
+
+export interface DeliverableOutput {
+  /** Run identifier this deliverable came from */
+  runId: string
+  /** Project name */
+  projectName: string
+  /** ISO timestamp when the run completed */
+  completedAt: string
+  /** Packaging status */
+  packagingStatus: PackagingStatus
+  /** Total artifact count */
+  artifactCount: number
+  /** Provider that generated the output */
+  provider: ProviderInfo | null
+  /** Stage-level artifact manifest */
+  stages: Array<{
+    stage: PipelineStage
+    label: string
+    status: StageStatus
+    artifactCount: number
+  }>
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +160,14 @@ export type RunStatus =
   | 'completed'   // all stages finished successfully
   | 'failed'      // pipeline stopped due to error
   | 'rejected'    // review rejected and retries exhausted
+
+/** Statuses that indicate the run is no longer active */
+export const TERMINAL_STATUSES: RunStatus[] = ['completed', 'failed', 'rejected']
+
+/** Check if a run status is terminal (no longer active) */
+export function isTerminalStatus(status: RunStatus): boolean {
+  return TERMINAL_STATUSES.includes(status)
+}
 
 export interface PipelineRun {
   /** Unique run identifier */
@@ -143,13 +208,11 @@ export interface ProjectRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Provider info — which AI provider/model handled the run
+// Provider info — re-exported from shared delivery contracts
 // ---------------------------------------------------------------------------
 
-export interface ProviderInfo {
-  provider: string
-  model: string
-}
+export type { ProviderInfo } from '../../shared/types/delivery'
+import type { ProviderInfo } from '../../shared/types/delivery'
 
 // ---------------------------------------------------------------------------
 // Health check — response from GET /health
@@ -186,4 +249,12 @@ export interface RunStatusResponse {
 export interface StageOutputResponse {
   stage: PipelineStage
   result: StageResult
+}
+
+export interface RunArtifactsResponse {
+  run_id: string
+  artifacts: Array<{
+    stage: PipelineStage
+    items: StageArtifact[]
+  }>
 }

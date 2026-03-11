@@ -14,6 +14,7 @@ import type {
   CreateRunResponse,
   RunStatusResponse,
   StageOutputResponse,
+  RunArtifactsResponse,
   HealthResponse,
   PipelineStage,
 } from '../types'
@@ -123,6 +124,24 @@ export const sdlcApi = {
       signal,
     })
     return handleResponse<RunStatusResponse>(res)
+  },
+
+  /**
+   * Get all artifacts for a completed run, grouped by stage.
+   * GET /pipeline/run/:runId/artifacts
+   *
+   * Note: This endpoint may not exist yet on the backend.
+   * The frontend derives artifact data from stage results in the meantime.
+   */
+  getRunArtifacts: async (
+    runId: string,
+    signal?: AbortSignal,
+  ): Promise<RunArtifactsResponse> => {
+    const res = await fetch(
+      `${BASE_URL}/pipeline/run/${encodeURIComponent(runId)}/artifacts`,
+      { signal },
+    )
+    return handleResponse<RunArtifactsResponse>(res)
   },
 
   /**

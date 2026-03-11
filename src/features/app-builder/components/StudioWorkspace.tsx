@@ -14,7 +14,7 @@ import StageViewer from './StageViewer'
 import RunSummaryPanel from './RunSummaryPanel'
 import { usePipelineRun } from '../hooks/usePipelineRun'
 import { useBackendHealth } from '../hooks/useBackendHealth'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Radio } from 'lucide-react'
 import type { BackendStatus } from '../types'
 
 export default function StudioWorkspace() {
@@ -23,15 +23,20 @@ export default function StudioWorkspace() {
     selectedStage,
     selectedStageResult,
     latestReview,
+    packagingSummary,
+    deliverable,
     starting,
     polling,
     error,
     canRetry,
+    handingOff,
+    handedOff,
     startRun,
     selectStage,
     retryRun,
     cancelRun,
     reset,
+    handOffToDelivery,
   } = usePipelineRun()
 
   const health = useBackendHealth()
@@ -52,6 +57,12 @@ export default function StudioWorkspace() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {polling && (
+            <div className="flex items-center gap-1.5">
+              <Radio size={10} className="text-blue-500 animate-pulse" />
+              <span className="text-[10px] text-blue-500">Live</span>
+            </div>
+          )}
           {run?.providerInfo && (
             <span className="text-[10px] text-gray-400">
               {run.providerInfo.provider} · {run.providerInfo.model}
@@ -94,6 +105,7 @@ export default function StudioWorkspace() {
                   currentStage={run.currentStage}
                   selectedStage={selectedStage}
                   onSelectStage={selectStage}
+                  isLive={polling}
                 />
               </div>
 
@@ -122,8 +134,13 @@ export default function StudioWorkspace() {
             latestReview={latestReview}
             canRetry={canRetry}
             polling={polling}
+            packagingSummary={packagingSummary}
+            deliverable={deliverable}
+            handingOff={handingOff}
+            handedOff={handedOff}
             onRetry={retryRun}
             onCancel={cancelRun}
+            onHandOff={handOffToDelivery}
           />
         </div>
       </div>

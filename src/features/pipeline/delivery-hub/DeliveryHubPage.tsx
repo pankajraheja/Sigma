@@ -5,70 +5,75 @@
 //   Admin → Brand Setup → User Generates → Validation → Export → Delivery Hub
 // ---------------------------------------------------------------------------
 
-import { Package, RefreshCw, Loader2, AlertCircle } from 'lucide-react'
+import { Package, RefreshCw, AlertCircle } from 'lucide-react'
+import PageShell, { PageContent } from '../../../components/shell/PageShell'
+import PageHeader from '../../../components/shell/PageHeader'
+import LoadingState from '../../../components/ui/LoadingState'
 import { useSubmissions } from './useSubmissions'
 import SubmissionsTable from './SubmissionsTable'
 
 export default function DeliveryHubPage() {
-  const { submissions, loading, error, downloading, redownload, refresh } = useSubmissions()
+  const { submissions, loading, error, downloading, downloadError, redownload, refresh } = useSubmissions()
 
   return (
-    <div className="min-h-full bg-gray-50">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
-        <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-gray-100">
-              <Package size={16} className="text-gray-600" />
-            </div>
-            <div>
-              <h1 className="text-[15px] font-bold text-gray-900">Delivery Hub</h1>
-              <p className="text-[11px] text-gray-500">Review exported prototype submissions and re-download</p>
-            </div>
-          </div>
-
+    <PageShell>
+      <PageHeader
+        icon={Package}
+        title="Delivery Hub"
+        subtitle="Review deliverables from Prototype Lab and Solutions Studio"
+        maxWidth="7xl"
+        actions={
           <button
             type="button"
             onClick={refresh}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-surface-subtle transition-colors disabled:opacity-50"
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Content */}
-      <div className="mx-auto max-w-7xl px-6 py-6">
-        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+      <PageContent maxWidth="7xl">
+        <div className="rounded-lg border border-border bg-surface shadow-card">
           {/* Stats bar */}
-          <div className="border-b border-gray-100 px-5 py-3 flex items-center gap-6">
-            <span className="text-[12px] text-gray-500">
-              Total submissions: <span className="font-bold text-gray-800">{submissions.length}</span>
+          <div className="border-b border-border-muted px-5 py-3 flex items-center gap-6">
+            <span className="text-[12px] text-ink-muted">
+              Total: <span className="font-bold text-ink">{submissions.length}</span>
             </span>
             {submissions.length > 0 && (
-              <span className="text-[12px] text-gray-500">
-                Brands: <span className="font-bold text-gray-800">
-                  {new Set(submissions.map((s) => s.brandName)).size}
+              <>
+                <span className="text-[12px] text-ink-muted">
+                  Prototypes: <span className="font-bold text-ink">
+                    {submissions.filter((s) => s.source === 'prototype-lab').length}
+                  </span>
                 </span>
-              </span>
+                <span className="text-[12px] text-ink-muted">
+                  Studio runs: <span className="font-bold text-ink">
+                    {submissions.filter((s) => s.source === 'solutions-studio').length}
+                  </span>
+                </span>
+              </>
             )}
           </div>
 
           {/* Loading */}
-          {loading && (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 size={20} className="animate-spin text-gray-400" />
-              <span className="ml-2 text-[13px] text-gray-500">Loading submissions…</span>
-            </div>
-          )}
+          {loading && <LoadingState message="Loading submissions…" />}
 
           {/* Error */}
           {error && !loading && (
             <div className="flex items-center justify-center gap-2 py-16">
-              <AlertCircle size={14} className="text-red-400" />
-              <span className="text-[13px] text-red-500">{error}</span>
+              <AlertCircle size={14} className="text-error" />
+              <span className="text-[13px] text-error">{error}</span>
+            </div>
+          )}
+
+          {/* Download error banner */}
+          {downloadError && (
+            <div className="flex items-center gap-2 mx-5 mt-3 px-3 py-2 rounded-md bg-red-50 border border-red-100">
+              <AlertCircle size={13} className="text-red-500 shrink-0" />
+              <span className="text-[12px] text-red-700">{downloadError}</span>
             </div>
           )}
 
@@ -83,7 +88,7 @@ export default function DeliveryHubPage() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   )
 }

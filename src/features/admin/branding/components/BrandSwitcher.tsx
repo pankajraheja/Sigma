@@ -21,9 +21,9 @@ export default function BrandSwitcher({ activeKey, onSwitch, className }: BrandS
         value={activeKey}
         onChange={(e) => onSwitch(e.target.value)}
         className={clsx(
-          'appearance-none rounded-md border border-gray-300 bg-white px-3 py-1.5 pr-8',
-          'text-[13px] text-gray-700 font-medium',
-          'focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400',
+          'appearance-none rounded-md border border-border bg-surface px-3 py-1.5 pr-8',
+          'text-[13px] text-ink font-medium',
+          'focus:outline-none focus:ring-2 focus:ring-border-strong focus:border-border-strong',
           'cursor-pointer',
         )}
       >
@@ -35,7 +35,7 @@ export default function BrandSwitcher({ activeKey, onSwitch, className }: BrandS
       </select>
       <ChevronDown
         size={14}
-        className="pointer-events-none absolute right-2.5 text-gray-400"
+        className="pointer-events-none absolute right-2.5 text-ink-faint"
       />
     </div>
   )

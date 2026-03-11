@@ -17,24 +17,5 @@ export interface PrototypePage {
   updatedAt: string
 }
 
-export interface SubmissionPage {
-  route: string
-  title: string
-  description: string
-  html: string
-}
-
-export interface SubmissionRecord {
-  id: string
-  timestamp: string
-  pageCount: number
-  brandName: string
-  readmeSummary: string
-  routeList: string[]
-  /** Set by the backend on save */
-  createdAt?: string
-  /** Stored for re-download in Delivery Hub */
-  pages?: SubmissionPage[]
-  /** Stored for re-download in Delivery Hub */
-  brandConfig?: Record<string, unknown>
-}
+// Re-export shared delivery types used by SubmitButton
+export type { SubmissionPage } from '../../shared/types/delivery'

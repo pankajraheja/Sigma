@@ -3,13 +3,14 @@
 //
 // Defines which approved blocks are available in a given workspace context.
 // Phase 1: static presets keyed by workspace type and optional page type.
-// Future: admin-managed policies loaded from the backend, RBAC integration.
+// Phase 2: admin-managed policies loaded from governance config.
 //
 // This is a pure data/utility layer — no React, no side effects.
 // ---------------------------------------------------------------------------
 
 import type { ApprovedBlock, BlockCategory } from './block-registry'
 import { filterBlocksByPolicy } from './block-registry'
+import type { PrototypeGovernanceConfig } from '../../../shared/types/governance'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -132,15 +133,17 @@ export const WORKSPACE_POLICIES: Record<WorkspaceType, WorkspacePolicy> = {
 export interface BlockPolicyContext {
   workspaceType: WorkspaceType
   pageType?: PageType
-  /** Future: admin-provided override from backend config */
+  /** Admin governance override — from PrototypeGovernanceConfig.allowedBlockIds */
   adminAllowedBlockIds?: string[] | null
+  /** Full governance config (Phase 2: loaded from admin backend) */
+  governanceConfig?: PrototypeGovernanceConfig
 }
 
 /**
  * Resolve the allowed block IDs for a given context.
  *
  * Priority (most restrictive wins):
- * 1. adminAllowedBlockIds (if provided, intersect with policy)
+ * 1. governanceConfig.allowedBlockIds or adminAllowedBlockIds (intersect with policy)
  * 2. pageOverrides (if matching page type exists)
  * 3. policy.allowedBlockIds (workspace-level default)
  * 4. null (all blocks allowed)
@@ -159,9 +162,10 @@ export function resolveAllowedBlockIds(ctx: BlockPolicyContext): string[] | null
       : pageAllowed
   }
 
-  // Intersect with admin override if provided
-  if (ctx.adminAllowedBlockIds !== undefined && ctx.adminAllowedBlockIds !== null) {
-    const adminSet = new Set(ctx.adminAllowedBlockIds)
+  // Resolve admin override — governance config takes precedence over raw adminAllowedBlockIds
+  const adminBlockIds = ctx.governanceConfig?.allowedBlockIds ?? ctx.adminAllowedBlockIds
+  if (adminBlockIds !== undefined && adminBlockIds !== null) {
+    const adminSet = new Set(adminBlockIds)
     allowed = allowed
       ? allowed.filter((id) => adminSet.has(id))
       : ALL_BLOCK_IDS.filter((id) => adminSet.has(id))

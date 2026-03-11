@@ -11,6 +11,10 @@ import { join, dirname } from 'node:path';
 
 // ---------------------------------------------------------------------------
 // Types
+//
+// These align with the frontend shared contracts in src/shared/types/delivery.ts.
+// The backend can't import from the frontend tree (separate tsconfig), so these
+// are kept in sync by convention. Shared type names match across both sides.
 // ---------------------------------------------------------------------------
 
 export interface SubmissionPage {
@@ -30,19 +34,61 @@ export interface SubmissionBrandConfig {
   buttonStyle: 'pill' | 'rounded' | 'square';
 }
 
-export interface SubmissionRecord {
+/** Submission origin — which module created this record. Mirrors SubmissionSource in shared/types/delivery.ts */
+export type SubmissionSource = 'prototype-lab' | 'solutions-studio';
+
+/** AI provider/model info. Mirrors ProviderInfo in shared/types/delivery.ts */
+export interface ProviderInfo {
+  provider: string;
+  model: string;
+}
+
+/** Per-stage summary for display. Mirrors StageSummaryItem in shared/types/delivery.ts */
+export interface StageSummaryItem {
+  stage: string;
+  label: string;
+  status: string;
+  artifactCount: number;
+}
+
+// -- Base fields shared by all submission records --
+interface SubmissionBase {
   id: string;
   timestamp: string;
+  createdAt: string;
+  source: SubmissionSource;
+  /** Human-readable summary shown in Delivery Hub table */
+  readmeSummary: string;
+}
+
+// -- Prototype Lab submissions (original shape) --
+export interface PrototypeSubmission extends SubmissionBase {
+  source: 'prototype-lab';
   pageCount: number;
   brandName: string;
-  readmeSummary: string;
   routeList: string[];
-  createdAt: string;
   /** Stored for re-download. Added in Phase 1.1. */
   pages?: SubmissionPage[];
   /** Stored for re-download. Added in Phase 1.1. */
   brandConfig?: SubmissionBrandConfig;
 }
+
+// -- Solutions Studio submissions --
+export interface StudioSubmission extends SubmissionBase {
+  source: 'solutions-studio';
+  /** SDLC pipeline run identifier */
+  runId: string;
+  /** Project name from the pipeline request */
+  projectName: string;
+  /** Number of artifacts produced across all stages */
+  artifactCount: number;
+  /** Per-stage summary for display */
+  stageSummary: StageSummaryItem[];
+  /** Provider/model that generated the output */
+  provider: ProviderInfo | null;
+}
+
+export type SubmissionRecord = PrototypeSubmission | StudioSubmission;
 
 // ---------------------------------------------------------------------------
 // File path — relative to backend/catalog root

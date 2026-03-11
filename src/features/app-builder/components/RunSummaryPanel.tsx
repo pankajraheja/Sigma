@@ -2,7 +2,7 @@
 // RunSummaryPanel — right-side summary, actions, and metadata panel.
 //
 // Shows: run status, elapsed time, provider info, review history,
-// retry button (if rejected), and cancel button (if running).
+// packaging status, artifact summary, and action buttons.
 // ---------------------------------------------------------------------------
 
 import {
@@ -15,8 +15,23 @@ import {
   StopCircle,
   Cpu,
   FileDown,
+  Package,
+  FileText,
+  FileJson,
+  Code2,
+  ExternalLink,
+  Loader2,
 } from 'lucide-react'
-import type { PipelineRun, ReviewDecision } from '../types'
+import type {
+  PipelineRun,
+  ReviewDecision,
+  PackagingSummary,
+  DeliverableOutput,
+  PackagingStatus,
+} from '../types'
+import { isTerminalStatus } from '../types'
+import { classifyArtifactType, formatFileSize } from '../utils/packaging'
+import { formatDuration } from '../utils/format'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -27,8 +42,13 @@ interface RunSummaryPanelProps {
   latestReview: ReviewDecision | null
   canRetry: boolean
   polling: boolean
+  packagingSummary: PackagingSummary | null
+  deliverable: DeliverableOutput | null
+  handingOff: boolean
+  handedOff: boolean
   onRetry: () => void
   onCancel: () => void
+  onHandOff: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -40,8 +60,13 @@ export default function RunSummaryPanel({
   latestReview,
   canRetry,
   polling,
+  packagingSummary,
+  deliverable,
+  handingOff,
+  handedOff,
   onRetry,
   onCancel,
+  onHandOff,
 }: RunSummaryPanelProps) {
   if (!run) {
     return (
@@ -59,7 +84,7 @@ export default function RunSummaryPanel({
   const completedStages = run.stages.filter((s) => s.status === 'completed').length
   const totalStages = run.stages.length
   const isRunning = run.status === 'running'
-  const isTerminal = ['completed', 'failed', 'rejected'].includes(run.status)
+  const isTerminal = isTerminalStatus(run.status)
 
   return (
     <div className="flex flex-col h-full">
@@ -123,6 +148,51 @@ export default function RunSummaryPanel({
           </InfoSection>
         )}
 
+        {/* Packaging status */}
+        {packagingSummary && isTerminal && (
+          <InfoSection label="Packaging" icon={Package}>
+            <PackagingStatusIndicator status={packagingSummary.status} />
+            {packagingSummary.status === 'ready' && (
+              <div className="mt-1.5 flex items-center gap-3 text-[10px] text-gray-500">
+                <span>{packagingSummary.totalArtifacts} artifact{packagingSummary.totalArtifacts !== 1 ? 's' : ''}</span>
+                {packagingSummary.reviewApproved && (
+                  <span className="flex items-center gap-0.5">
+                    <CheckCircle2 size={9} className="text-green-500" />
+                    Review passed
+                  </span>
+                )}
+              </div>
+            )}
+          </InfoSection>
+        )}
+
+        {/* Artifact summary */}
+        {packagingSummary && packagingSummary.totalArtifacts > 0 && isTerminal && (
+          <InfoSection label="Artifacts">
+            <div className="space-y-1.5">
+              {packagingSummary.artifactsByStage.map(({ stage, stageLabel, artifacts }) => (
+                <div key={stage} className="text-[10px]">
+                  <span className="font-medium text-gray-600">{stageLabel}</span>
+                  <span className="text-gray-400 ml-1">({artifacts.length})</span>
+                  <div className="mt-0.5 space-y-0.5">
+                    {artifacts.map((a) => (
+                      <div key={a.id} className="flex items-center gap-1.5 pl-2 text-gray-500">
+                        <ArtifactTypeIcon type={a.type} />
+                        <span className="truncate flex-1">{a.name}</span>
+                        {a.sizeBytes != null && (
+                          <span className="text-[9px] text-gray-400 shrink-0">
+                            {formatFileSize(a.sizeBytes)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </InfoSection>
+        )}
+
         {/* Error */}
         {run.status === 'failed' && (
           <div className="flex items-start gap-2 p-2.5 rounded-md bg-red-50 border border-red-100">
@@ -158,16 +228,45 @@ export default function RunSummaryPanel({
           </button>
         )}
 
-        {run.status === 'completed' && (
+        {/* Export — enabled when packaging is ready */}
+        {isTerminal && packagingSummary?.status === 'ready' && (
           <button
             type="button"
             disabled
             className="w-full flex items-center justify-center gap-1.5 rounded-md bg-gray-800 text-white py-1.5 text-[12px] font-medium opacity-50 cursor-not-allowed"
-            title="Export will be available in a future release"
+            title="Download will be available when the backend exposes an artifacts endpoint"
           >
             <FileDown size={12} />
-            Export Output
+            Export Artifacts
           </button>
+        )}
+
+        {/* Delivery Hub handoff — shown for completed, package-ready runs */}
+        {deliverable && packagingSummary?.status === 'ready' && !handedOff && (
+          <button
+            type="button"
+            disabled={handingOff}
+            onClick={onHandOff}
+            className="w-full flex items-center justify-center gap-1.5 rounded-md border border-gray-200 text-gray-600 py-1.5 text-[12px] font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {handingOff ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+            {handingOff ? 'Handing off…' : 'Hand Off to Delivery'}
+          </button>
+        )}
+        {handedOff && (
+          <div className="flex items-center justify-center gap-1.5 py-1.5 text-[11px] text-green-600">
+            <CheckCircle2 size={12} />
+            Handed off to Delivery Hub
+          </div>
+        )}
+
+        {/* Packaging not ready — explain why */}
+        {isTerminal && packagingSummary && packagingSummary.status !== 'ready' && packagingSummary.status !== 'not_started' && (
+          <p className="text-[10px] text-gray-400 text-center italic">
+            {packagingSummary.status === 'failed' && 'Packaging failed — artifacts may be incomplete.'}
+            {packagingSummary.status === 'skipped' && 'Packaging was skipped — no deliverables available.'}
+            {packagingSummary.status === 'in_progress' && 'Packaging in progress…'}
+          </p>
         )}
       </div>
     </div>
@@ -227,6 +326,34 @@ function RunStatusIndicator({ status }: { status: string }) {
   )
 }
 
+function PackagingStatusIndicator({ status }: { status: PackagingStatus }) {
+  const config: Record<PackagingStatus, { icon: typeof Package; color: string; label: string }> = {
+    not_started: { icon: Package,       color: 'text-gray-400',  label: 'Not started' },
+    in_progress: { icon: Package,       color: 'text-blue-500',  label: 'In progress' },
+    ready:       { icon: CheckCircle2,  color: 'text-green-500', label: 'Ready' },
+    failed:      { icon: XCircle,       color: 'text-red-500',   label: 'Failed' },
+    skipped:     { icon: Package,       color: 'text-gray-400',  label: 'Skipped' },
+  }
+  const c = config[status]
+  const Icon = c.icon
+  return (
+    <div className="flex items-center gap-1.5">
+      <Icon size={12} className={c.color} />
+      <span className={`text-[11px] font-medium ${c.color}`}>{c.label}</span>
+    </div>
+  )
+}
+
+function ArtifactTypeIcon({ type }: { type: string }) {
+  const kind = classifyArtifactType(type)
+  switch (kind) {
+    case 'code':     return <Code2 size={9} className="text-indigo-500 shrink-0" />
+    case 'document': return <FileText size={9} className="text-gray-400 shrink-0" />
+    case 'data':     return <FileJson size={9} className="text-amber-500 shrink-0" />
+    default:         return <FileText size={9} className="text-gray-300 shrink-0" />
+  }
+}
+
 function ReviewEntry({ review }: { review: ReviewDecision }) {
   return (
     <div className={`flex items-start gap-2 px-2 py-1.5 rounded text-[10px] ${
@@ -247,15 +374,3 @@ function ReviewEntry({ review }: { review: ReviewDecision }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  const secs = Math.round(ms / 1000)
-  if (secs < 60) return `${secs}s`
-  const mins = Math.floor(secs / 60)
-  const remSecs = secs % 60
-  return `${mins}m ${remSecs}s`
-}
